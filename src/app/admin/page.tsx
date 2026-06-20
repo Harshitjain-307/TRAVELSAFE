@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Shield, ArrowLeft, Globe, Users, Clock, Camera } from "lucide-react";
+import { Shield, ArrowLeft, Globe, Camera } from "lucide-react";
 import { useTravelSafeStore } from "@/store/useTravelSafeStore";
 import { useMockStreams } from "@/hooks/useMockStreams";
 import dynamic from "next/dynamic";

@@ -145,7 +145,7 @@ export async function fetchAlternativeRoutes(
       throw new Error("No routes");
     }
 
-    const parseRoute = (route: any): OSRMRouteResult => ({
+    const parseRoute = (route: { geometry: { coordinates: [number, number][] }; distance: number; duration: number }): OSRMRouteResult => ({
       coordinates: route.geometry.coordinates.map(
         ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
       ),
@@ -154,11 +154,11 @@ export async function fetchAlternativeRoutes(
     });
 
     // Sort routes: fastest by duration, longest by distance (safest = more main roads)
-    const sorted = [...data.routes].sort((a: any, b: any) => a.duration - b.duration);
+    const sorted = [...data.routes].sort((a: { duration: number }, b: { duration: number }) => a.duration - b.duration);
     const fastest = parseRoute(sorted[0]);
 
     // Safest is the longest route (avoids shortcuts, sticks to main roads)
-    const safestRoute = [...data.routes].sort((a: any, b: any) => b.distance - a.distance);
+    const safestRoute = [...data.routes].sort((a: { distance: number }, b: { distance: number }) => b.distance - a.distance);
     const safest = parseRoute(safestRoute[0]);
 
     // Recommended is the middle option, or first if only 1

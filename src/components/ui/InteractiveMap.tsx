@@ -359,7 +359,7 @@ export default function InteractiveMap({
     } else {
       initMap();
     }
-  }, [lat, lng, zoom, markers, routeCoordinates, visiblePointsCount, lineColor, mapStyle, isEmergency, routeProgress, waypoint]);
+  }, [lat, lng, zoom, markers, routeCoordinates, visiblePointsCount, lineColor, mapStyle, isEmergency, routeProgress, waypoint, secondaryLineColor, secondaryRouteCoordinates]);
 
   useEffect(() => {
     if (leafletMap.current && routeCoordinates && routeCoordinates.length >= 2) {

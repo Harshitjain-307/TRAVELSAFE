@@ -171,7 +171,17 @@ interface CoPassenger {
   }
 
   const [selectedCoPassenger, setSelectedCoPassenger] = useState<CoPassenger | null>(null);
-  const [selectedMarker, setSelectedMarker] = useState<any | null>(null);
+  const [selectedMarker, setSelectedMarker] = useState<{
+    id: string;
+    lat: number;
+    lng: number;
+    type?: string;
+    label?: string;
+    name?: string;
+    distance?: string;
+    eta?: string;
+    safetyScore?: number;
+  } | null>(null);
   
   // Custom interactive route adjustments
   const [waypoint, setWaypoint] = useState<{ lat: number; lng: number } | null>(null);
@@ -194,6 +204,7 @@ interface CoPassenger {
   const [calculatedRouteCoords, setCalculatedRouteCoords] = useState<[number, number][]>([]);
   const [routeDistance, setRouteDistance] = useState(14.2);
   const [routeEta, setRouteEta] = useState(24);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [shouldAutoStartSim, setShouldAutoStartSim] = useState(false);
 
@@ -412,7 +423,7 @@ interface CoPassenger {
   // Map markers for map rendering
   const mapMarkers: MapMarker[] = [];
   const startCoords: [number, number] = [28.6304, 77.2177];
-  const destCoords: [number, number] = selectedDest ? [selectedDest.lat, selectedDest.lng] : startCoords;
+  // const destCoords: [number, number] = selectedDest ? [selectedDest.lat, selectedDest.lng] : startCoords; // Unused
   
   // Calculate road snaps
 
@@ -571,7 +582,7 @@ interface CoPassenger {
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => {
-                    navigateToHaven(selectedMarker.name, selectedMarker.lat, selectedMarker.lng);
+                    navigateToHaven(selectedMarker.name || selectedMarker.id, selectedMarker.lat, selectedMarker.lng);
                     setSelectedMarker(null);
                   }}
                   className="flex-1 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-[10px] font-bold text-white uppercase tracking-wider transition-all"
@@ -971,7 +982,7 @@ interface CoPassenger {
             <div className="flex gap-1.5">
               <button
                 onClick={() => {
-                  navigateToHaven(selectedMarker.name, selectedMarker.lat, selectedMarker.lng);
+                  navigateToHaven(selectedMarker.name || selectedMarker.id, selectedMarker.lat, selectedMarker.lng);
                   setSelectedMarker(null);
                 }}
                 className="flex-1 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-[8px] font-bold text-white uppercase tracking-wider transition-all"

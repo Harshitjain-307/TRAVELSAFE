@@ -404,7 +404,7 @@ export default function PolicePage() {
                 <label className="text-[8px] text-white/40 block font-mono">SELECT UNIT VEHICLE</label>
                 <select
                   value={vehicleType}
-                  onChange={(e) => setVehicleType(e.target.value as any)}
+                  onChange={(e) => setVehicleType(e.target.value as 'pcr' | 'interceptor' | 'bike')}
                   className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-[9px] text-white/80 focus:border-purple-500 outline-none"
                 >
                   <option value="pcr">PCR Van (Alpha-1)</option>
