@@ -14,7 +14,7 @@ import emergencyRoutes from "./routes/emergency.routes";
 import osrmRoutes from "./routes/osrm.routes";
 
 const app = express();
-const defaultPort = parseInt(process.env.BACKEND_PORT || "3001", 10);
+const defaultPort = parseInt(process.env.PORT || "3001", 10);
 const MONGODB_URI = process.env.MONGODB_URI || "";
 
 app.use(cors());
@@ -63,8 +63,8 @@ function startServer(port: number) {
     }
   });
 
-  httpServer.listen(port, () => {
-    console.log(`> TravelSafe X Backend V2 active on http://localhost:${port}`);
+  httpServer.listen(port, "0.0.0.0", () => {
+    console.log(`> TravelSafe X Backend V2 active on port ${port}`);
   });
 }
 
