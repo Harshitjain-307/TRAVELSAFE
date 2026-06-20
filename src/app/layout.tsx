@@ -4,6 +4,7 @@ import "./globals.css";
 import { LiveChat } from "@/components/global/LiveChat";
 import { VoiceAssistant } from "@/components/global/VoiceAssistant";
 import { NotificationFlyout } from "@/components/global/NotificationFlyout";
+import { TrackingProvider } from "@/components/tracking/TrackingProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,7 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.variable} ${spaceGrotesk.variable} antialiased`}>
-        {children}
+        <TrackingProvider>
+          {children}
+        </TrackingProvider>
         <LiveChat />
         <VoiceAssistant />
         <NotificationFlyout />

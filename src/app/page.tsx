@@ -16,12 +16,13 @@ export default function LandingPage() {
   const setUserPersona = useTravelSafeStore((s) => s.setUserPersona);
   const setAadhaarDetails = useTravelSafeStore((s) => s.setAadhaarDetails);
   const systemMode = useTravelSafeStore((s) => s.systemMode);
+  const storeUserName = useTravelSafeStore((s) => s.userName);
   const isEmergency = systemMode !== "SAFE";
 
   // Auth flow local state
   const [selectedRole, setSelectedRole] = useState<UserPersona | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [authStep, setAuthStep] = useState<"INPUT" | "OTP" | "FACE" | "SUCCESS">("INPUT");
+  const [authStep, setAuthStep] = useState<"INPUT" | "OTP" | "FACE" | "SUCCESS" | "BIOMETRIC">("INPUT");
   const [aadhaarInput, setAadhaarInput] = useState("");
   const [mobileInput, setMobileInput] = useState("");
   const [otpInput, setOtpInput] = useState("");
@@ -172,7 +173,32 @@ export default function LandingPage() {
   const handleRoleSelect = (role: UserPersona) => {
     setSelectedRole(role);
     setIsVerifying(true);
-    setAuthStep("INPUT");
+    
+    // Check if store already has verified credentials for this role
+    const store = useTravelSafeStore.getState();
+    if (store.isAuthenticated && store.userPersona === role) {
+      setAuthStep("BIOMETRIC");
+    } else {
+      setAuthStep("INPUT");
+    }
+  };
+
+  const triggerBiometricVerify = (method: string) => {
+    setAuthStep("FACE");
+    setFaceMeshPoints(0);
+    let count = 0;
+    const interval = setInterval(() => {
+      count += 20;
+      setFaceMeshPoints(count);
+      if (count >= 100) {
+        clearInterval(interval);
+        setTimeout(() => {
+          setAuthStep("SUCCESS");
+          setAuthStatus(true);
+          setUserPersona(selectedRole);
+        }, 500);
+      }
+    }, 150);
   };
 
   const handleInputSubmit = (e: React.FormEvent) => {
@@ -199,7 +225,7 @@ export default function LandingPage() {
             setAuthStep("SUCCESS");
             setAuthStatus(true);
             setUserPersona(selectedRole);
-            setAadhaarDetails(aadhaarInput, mobileInput);
+            setAadhaarDetails(aadhaarInput, mobileInput, selectedRole === "CIVILIAN" ? "Priya Sharma" : selectedRole === "GUARDIAN" ? "Rahul Singh" : selectedRole === "POLICE" ? "Inspector Sharma" : "Super Admin");
           }, 800);
         }
       }, 300);
@@ -353,6 +379,82 @@ export default function LandingPage() {
               </div>
 
               {/* Steps Render */}
+              {authStep === "BIOMETRIC" && (
+                <div className="space-y-6 text-center py-2 text-xs">
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] uppercase tracking-widest text-emerald-400 font-mono font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded">
+                      Welcome Back
+                    </span>
+                    <h3 className="text-xl font-bold text-white mt-1">
+                      {storeUserName || (selectedRole === "CIVILIAN"
+                        ? "Priya Sharma"
+                        : selectedRole === "GUARDIAN"
+                        ? "Rahul Singh"
+                        : selectedRole === "POLICE"
+                        ? "Inspector Sharma"
+                        : "Super Admin")}
+                    </h3>
+                    <p className="text-[9px] text-white/40 font-mono">Verified ID: e-KYC Active</p>
+                  </div>
+                  
+                  <div className="space-y-2 border-t border-white/5 pt-4">
+                    <label className="text-[9px] uppercase tracking-widest text-white/35 font-mono font-bold block mb-2">
+                      Secure One-Tap Login
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => triggerBiometricVerify("Face ID")}
+                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-white/5 bg-white/[0.01] hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all text-white/60 hover:text-white"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+                          <Users size={16} />
+                        </div>
+                        <span className="text-[8px] font-bold">Face ID</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => triggerBiometricVerify("Fingerprint")}
+                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-white/5 bg-white/[0.01] hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-white/60 hover:text-white"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                          <Smartphone size={16} />
+                        </div>
+                        <span className="text-[8px] font-bold">Fingerprint</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => triggerBiometricVerify("Device PIN")}
+                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-white/5 bg-white/[0.01] hover:border-purple-500/40 hover:bg-purple-500/5 transition-all text-white/60 hover:text-white"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400">
+                          <Lock size={16} />
+                        </div>
+                        <span className="text-[8px] font-bold">Device PIN</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => triggerBiometricVerify("One Tap")}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 text-xs font-bold uppercase tracking-wider hover:from-emerald-500 hover:to-cyan-500 transition-all mt-4 text-white"
+                  >
+                    Instant Biometric Bypass
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAuthStep("INPUT")}
+                    className="text-[8px] uppercase tracking-wider text-white/30 hover:text-white block mx-auto underline mt-2"
+                  >
+                    Reset & Sign in with Aadhaar
+                  </button>
+                </div>
+              )}
+
               {authStep === "INPUT" && (
                 <form onSubmit={handleInputSubmit} className="space-y-4">
                   <div className="space-y-1">

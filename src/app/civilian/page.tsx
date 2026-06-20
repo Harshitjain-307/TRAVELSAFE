@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Shield, ArrowLeft, Cpu, Monitor, Phone, Info } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Shield, ArrowLeft, Cpu, Monitor, Phone, Info, Radio } from "lucide-react";
 import { MobileDeviceFrame } from "@/components/civilian/MobileDeviceFrame";
 import { HomeTab } from "@/components/civilian/HomeTab";
 import { MapTab } from "@/components/civilian/MapTab";
@@ -12,9 +13,15 @@ import { ProfileTab } from "@/components/civilian/ProfileTab";
 import { SOSSimulation } from "@/components/civilian/SOSSimulation";
 import { useTravelSafeStore } from "@/store/useTravelSafeStore";
 import { useMockStreams } from "@/hooks/useMockStreams";
+import { useLiveTracking } from "@/hooks/useLiveTracking";
+import { ResponderStatusPanel } from "@/components/tracking/ResponderStatusPanel";
+import { isTrackingActive } from "@/lib/tracking";
+
+const LiveTrackingMap = dynamic(() => import("@/components/tracking/LiveTrackingMap"), { ssr: false });
 
 export default function CivilianPage() {
-  useMockStreams(); // Start streams
+  useMockStreams();
+  const { startDemo, stopDemo, snapshot, connected } = useLiveTracking();
   const [activeTab, setActiveTab] = useState("home");
   const systemMode = useTravelSafeStore((s) => s.systemMode);
   const startThreatSimulation = useTravelSafeStore((s) => s.startThreatSimulation);
@@ -22,6 +29,17 @@ export default function CivilianPage() {
   const isAuthenticated = useTravelSafeStore((s) => s.isAuthenticated);
 
   const isEmergency = systemMode !== "SAFE";
+  const trackingActive = isTrackingActive(snapshot);
+
+  const handleSimulateEmergency = () => {
+    if (isEmergency) {
+      stopThreatSimulation();
+      stopDemo();
+    } else {
+      startThreatSimulation();
+      startDemo();
+    }
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -112,7 +130,7 @@ export default function CivilianPage() {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
-                onClick={isEmergency ? stopThreatSimulation : startThreatSimulation}
+                onClick={handleSimulateEmergency}
                 className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold tracking-wider uppercase transition-all ${
                   isEmergency
                     ? "bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20"
@@ -120,7 +138,7 @@ export default function CivilianPage() {
                 }`}
               >
                 <Phone size={12} />
-                {isEmergency ? "End Emergency SOS" : "Simulate Threat SOS"}
+                {isEmergency ? "End Emergency SOS" : "Simulate Emergency"}
               </button>
               
               <Link
@@ -137,12 +155,31 @@ export default function CivilianPage() {
                 <Info size={12} className="text-cyan-400" /> Interactive Workflows to Test:
               </h4>
               <ul className="text-[10px] text-white/40 space-y-1 list-disc pl-4">
+                <li>Click <span className="text-white/60">&quot;Simulate Emergency&quot;</span> to trigger the full 10-step live tracking demo (Guardian accept → Police dispatch → live ETA).</li>
                 <li>Go to the <span className="text-white/60">Journey Tab</span> and type <span className="font-mono text-cyan-400">&quot;Aunt Mary called.&quot;</span> into the simulated chat to trigger a stealth Silent SOS.</li>
-                <li>Go to the <span className="text-white/60">Community Tab</span> to customize seating choices on the live coach seating recommender.</li>
-                <li>Go to the <span className="text-white/60">Map Tab</span> to toggle between Safest, Recommended, and Fastest routes.</li>
+                <li>Go to the <span className="text-white/60">Map Tab</span> to see live responder movement on the map.</li>
               </ul>
             </div>
           </div>
+
+          {/* Live Responder Tracking Panel */}
+          {(isEmergency || trackingActive) && (
+            <div className="rounded-2xl border border-red-500/20 bg-red-950/10 p-5 space-y-4 max-w-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold tracking-wider text-red-400 uppercase flex items-center gap-2">
+                  <Radio size={14} className={connected ? "animate-pulse" : ""} />
+                  Live Responder Tracking
+                </h3>
+                <span className="text-[8px] font-mono text-white/30">
+                  {connected ? "WebSocket Connected" : "Connecting..."}
+                </span>
+              </div>
+              <div className="h-44 rounded-xl overflow-hidden border border-white/5">
+                <LiveTrackingMap snapshot={snapshot} viewMode="civilian" height="176px" showLegend={false} showProgress={false} />
+              </div>
+              <ResponderStatusPanel snapshot={snapshot} variant="civilian" compact />
+            </div>
+          )}
         </div>
 
         {/* Right Column: Mobile Simulator Device Frame */}

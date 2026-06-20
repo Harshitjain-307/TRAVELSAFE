@@ -1,8 +1,11 @@
 "use client";
 
 import { Award, Shield, Phone, MessageSquare, Zap, Activity, Settings } from "lucide-react";
+import { useTravelSafeStore } from "@/store/useTravelSafeStore";
 
 export function ProfileTab() {
+  const userName = useTravelSafeStore((s) => s.userName) || "Priya Sharma";
+  const trustScore = useTravelSafeStore((s) => s.trustScore) || 98;
 
   const badges = [
     { title: "Verified Citizen", desc: "Aadhaar e-KYC linked", icon: <Shield size={14} className="text-emerald-400" /> },
@@ -27,11 +30,11 @@ export function ProfileTab() {
       {/* Profile Overview Card */}
       <div className="rounded-2xl p-4 bg-white/[0.01] border border-white/5 flex items-center gap-4">
         <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border-2 border-emerald-500/30 flex items-center justify-center text-lg font-bold text-white">
-          PS
+          {userName.split(" ").map(n => n[0]).join("").toUpperCase()}
         </div>
         <div>
           <div className="flex items-center gap-1.5">
-            <h3 className="text-base font-bold text-white">Priya Sharma</h3>
+            <h3 className="text-base font-bold text-white">{userName}</h3>
             <span className="text-[8px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold px-2 py-0.5 rounded">
               VERIFIED
             </span>
@@ -39,7 +42,7 @@ export function ProfileTab() {
           <p className="text-[10px] text-white/40 mt-0.5">Account ID: TSX-9834-DLI</p>
           <div className="flex items-center gap-1 mt-1 text-[10px] text-emerald-400/90 font-mono">
             <span>Trust Score:</span>
-            <span className="font-bold">98%</span>
+            <span className="font-bold">{trustScore}%</span>
           </div>
         </div>
       </div>

@@ -213,3 +213,59 @@ body {
 .mapboxgl-ctrl-attrib {
   display: none !important;
 }
+
+@keyframes route-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+.animated-route-line {
+  stroke-dasharray: 8, 8;
+  animation: route-flow 1.5s linear infinite !important;
+}
+
+@keyframes route-flow-yellow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -20; }
+}
+
+.guardian-moving-dash-route {
+  stroke-dasharray: 10, 10;
+  animation: route-flow-yellow 1s linear infinite !important;
+}
+
+@keyframes pulse-route {
+  0%, 100% { stroke-opacity: 0.8; }
+  50% { stroke-opacity: 1.0; }
+}
+
+.emergency-pulse-route {
+  animation: pulse-route 1.2s ease-in-out infinite !important;
+}
+
+.glowing-road-label {
+  background: transparent !important;
+  border: none !important;
+}
+
+.glowing-road-label-inner {
+  font-family: monospace;
+  font-size: 8px;
+  font-weight: bold;
+  color: rgba(6, 211, 238, 0.95);
+  text-shadow: 0 0 6px rgba(6, 211, 238, 0.8);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(3, 3, 5, 0.85);
+  padding: 1.5px 3.5px;
+  border: 1px solid rgba(6, 211, 238, 0.25);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+

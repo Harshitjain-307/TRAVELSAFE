@@ -8,6 +8,7 @@ import { AnimatedCounter } from "@/components/ui/AnimatedCounter";
 export function HomeTab() {
   const systemMode = useTravelSafeStore((s) => s.systemMode);
   const metrics = useTravelSafeStore((s) => s.metrics);
+  const userName = useTravelSafeStore((s) => s.userName) || "Priya Sharma";
   const isEmergency = systemMode !== "SAFE";
 
   const getStatusText = () => {
@@ -40,7 +41,7 @@ export function HomeTab() {
       {/* Top Header Card */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-white/90">Good Evening, Priya 👋</h2>
+          <h2 className="text-lg font-bold text-white/90">Good Evening, {userName.split(" ")[0]} 👋</h2>
           <p className="text-[10px] text-white/40 flex items-center gap-1 mt-0.5">
             <MapPin size={10} className="text-emerald-400" /> Delhi, Connaught Place
           </p>
@@ -54,7 +55,7 @@ export function HomeTab() {
             transition={{ repeat: Infinity, duration: 10, ease: "linear" }}
           />
           <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-500/20 to-cyan-500/20 border border-white/10 flex items-center justify-center text-xs font-bold text-white">
-            PS
+            {userName.split(" ").map(n => n[0]).join("").toUpperCase()}
           </div>
         </div>
       </div>

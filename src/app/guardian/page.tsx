@@ -3,15 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { Shield, ArrowLeft, Radar, Zap, Trophy, ShieldAlert, CheckCircle, Navigation } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Shield, ArrowLeft, Radar, Zap, Trophy, ShieldAlert, CheckCircle, Navigation, Radio } from "lucide-react";
 import { useTravelSafeStore } from "@/store/useTravelSafeStore";
 import { useMockStreams } from "@/hooks/useMockStreams";
+import { useLiveTracking } from "@/hooks/useLiveTracking";
+import { formatDistance, formatEta, isTrackingActive } from "@/lib/tracking";
+
+const LiveTrackingMap = dynamic(() => import("@/components/tracking/LiveTrackingMap"), { ssr: false });
 
 export default function GuardianPage() {
-  useMockStreams(); // Start streams
+  useMockStreams();
+  const { acceptGuardian, snapshot, connected, stopDemo } = useLiveTracking();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Zustand State
   const systemMode = useTravelSafeStore((s) => s.systemMode);
   const activeGuardianMission = useTravelSafeStore((s) => s.activeGuardianMission);
   const acceptGuardianMission = useTravelSafeStore((s) => s.acceptGuardianMission);
@@ -21,6 +26,8 @@ export default function GuardianPage() {
   const notifications = useTravelSafeStore((s) => s.notifications);
 
   const isEmergency = systemMode !== "SAFE";
+  const trackingActive = isTrackingActive(snapshot);
+  const myGuardian = snapshot?.incident?.responders.find((r) => r.id === "g-rahul");
 
   // Local state
   const [activeTab, setActiveTab] = useState<"alerts" | "rankings">("alerts");
@@ -136,6 +143,10 @@ export default function GuardianPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <span className="text-[10px] px-2.5 py-1 rounded bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-[9px] font-bold flex items-center gap-1">
+            <Radio size={10} className={connected ? "animate-pulse" : ""} />
+            {connected ? "LIVE GPS" : "CONNECTING..."}
+          </span>
           <span className="text-[10px] px-2.5 py-1 rounded bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-[9px] font-bold">
             RADAR ACTIVE: {guardianRadarRange}KM
           </span>
@@ -168,6 +179,48 @@ export default function GuardianPage() {
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Safe Zone</span>
             </div>
           </div>
+
+          {/* Live Navigation Map */}
+          {(isEmergency || trackingActive) && (
+            <div className="rounded-2xl border border-white/5 bg-white/[0.01] backdrop-blur-md p-4 space-y-3">
+              <h3 className="text-xs font-bold text-white/70 uppercase tracking-wider flex items-center gap-1.5">
+                <Navigation size={14} className="text-yellow-400" /> Live Navigation Map
+              </h3>
+              <div className="h-48">
+                <LiveTrackingMap snapshot={snapshot} viewMode="guardian" height="192px" showLegend={false} />
+              </div>
+              {myGuardian && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-3 gap-2 text-[9px] font-mono bg-black/40 border border-white/5 rounded-xl p-3">
+                    <div>
+                      <span className="text-white/30 block uppercase text-[7px]">Your ETA</span>
+                      <span className="text-cyan-400 font-bold">{formatEta(myGuardian.etaMinutes)}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/30 block uppercase text-[7px]">Distance</span>
+                      <span className="text-white font-bold">{formatDistance(myGuardian.distanceKm)}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/30 block uppercase text-[7px]">Route Progress</span>
+                      <span className="text-yellow-400 font-bold">{Math.round(myGuardian.routeProgress * 100)}%</span>
+                    </div>
+                  </div>
+
+                  {/* Traffic Conditions & Safe Route Suggestions */}
+                  <div className="rounded-xl border border-white/5 bg-black/40 p-3 space-y-2 text-[10px]">
+                    <div className="flex justify-between border-b border-white/5 pb-1 text-[8px] font-mono">
+                      <span className="text-white/40 uppercase">Traffic Conditions:</span>
+                      <span className="text-emerald-400 font-bold">MODERATE DELAYS (Janpath Road)</span>
+                    </div>
+                    <div className="space-y-1 text-white/60 text-[9px] leading-relaxed">
+                      <p>🚦 **Status**: 1.2 KM route has typical traffic. Primary intersections are clear.</p>
+                      <p>🛡️ **Safe Suggestion**: Sticking to Janpath Road is recommended. It is fully lit and has 3 peer guardians active nearby.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Quick Logs/Notifications */}
           <div className="rounded-2xl border border-white/5 bg-[#0c0c12]/60 backdrop-blur-md p-4 space-y-3">
@@ -255,15 +308,23 @@ export default function GuardianPage() {
                     <div className="flex items-center gap-2">
                       {!activeGuardianMission ? (
                         <button
-                          onClick={() => acceptGuardianMission("CP-07")}
+                          onClick={() => {
+                            acceptGuardianMission("CP-07");
+                            acceptGuardian("g-rahul", "Rahul Singh");
+                          }}
                           className="flex-1 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-[0_4px_15px_rgba(6,182,212,0.3)]"
                         >
-                          <Navigation size={14} /> Accept Mission / Navigate
+                          <Navigation size={14} /> 🟢 YES, I&apos;M GOING
                         </button>
                       ) : (
                         <div className="flex-1 p-3 rounded-xl border border-cyan-500/35 bg-cyan-500/10 flex items-center justify-between text-xs font-semibold text-cyan-400">
                           <span className="flex items-center gap-1.5">
-                            <CheckCircle size={14} /> Mission Accepted. Rerouting coordinates.
+                            <CheckCircle size={14} /> Live tracking active — sharing coordinates.
+                            {myGuardian && (
+                              <span className="text-[9px] font-mono text-yellow-400 ml-1">
+                                ETA {formatEta(myGuardian.etaMinutes)}
+                              </span>
+                            )}
                           </span>
                           <button
                             onClick={() => acceptGuardianMission(null)}
@@ -275,7 +336,7 @@ export default function GuardianPage() {
                       )}
 
                       <button
-                        onClick={stopThreatSimulation}
+                        onClick={() => { stopThreatSimulation(); stopDemo(); }}
                         className="py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white/60 hover:text-white transition-all text-xs font-bold uppercase"
                       >
                         De-escalate

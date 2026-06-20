@@ -3,15 +3,19 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldAlert, X, Eye, PhoneCall, FileText, Share2 } from "lucide-react";
 import { useTravelSafeStore } from "@/store/useTravelSafeStore";
+import { ResponderStatusPanel } from "@/components/tracking/ResponderStatusPanel";
+import { isTrackingActive } from "@/lib/tracking";
 
 export function SOSSimulation() {
   const systemMode = useTravelSafeStore((s) => s.systemMode);
   const sosCounter = useTravelSafeStore((s) => s.sosCounter);
   const firGenerated = useTravelSafeStore((s) => s.firGenerated);
   const emergencyPackets = useTravelSafeStore((s) => s.emergencyPackets);
+  const trackingSnapshot = useTravelSafeStore((s) => s.trackingSnapshot);
   const stopThreatSimulation = useTravelSafeStore((s) => s.stopThreatSimulation);
 
   const isEmergency = systemMode !== "SAFE";
+  const trackingActive = isTrackingActive(trackingSnapshot);
 
   if (!isEmergency) return null;
 
@@ -108,6 +112,13 @@ export function SOSSimulation() {
               <span className="text-[9px] font-bold text-red-400 block font-mono">T-0 ROUTED</span>
             </div>
           </div>
+
+          {/* Live Responder Tracking during SOS */}
+          {trackingActive && (
+            <div className="rounded-lg bg-black/40 border border-red-500/10 p-2">
+              <ResponderStatusPanel snapshot={trackingSnapshot} variant="civilian" compact />
+            </div>
+          )}
 
           {/* Emergency Logs Stream */}
           <div className="rounded-lg bg-black/40 border border-red-500/10 p-2 text-[9px] font-mono text-red-400/80 space-y-1">

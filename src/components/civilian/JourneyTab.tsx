@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Lock, Video, Mic, ShieldAlert, ShieldCheck } from "lucide-react";
+import { MapPin, Lock, Video, Mic, Shield, ShieldAlert, ShieldCheck, Car, Footprints, Bike, Bus, UserCheck, ShieldAlert as WarningIcon, AlertCircle } from "lucide-react";
 import { useTravelSafeStore } from "@/store/useTravelSafeStore";
 
 interface JourneyTabProps {
@@ -14,6 +14,17 @@ export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
   const isEmergency = systemMode !== "SAFE";
   const evidence = useTravelSafeStore((s) => s.evidence);
 
+  // V2 Journey States
+  const [isJourneyActive, setIsJourneyActive] = useState(false);
+  const [transportMode, setTransportMode] = useState<"walking" | "bike" | "personal" | "cab" | "public" | null>(null);
+
+  // Cab Input fields
+  const [cabNumber, setCabNumber] = useState("");
+  const [driverName, setDriverName] = useState("");
+  const [cabService, setCabService] = useState("");
+  const [tripId, setTripId] = useState("");
+
+  // Chat log states
   const [safeWords] = useState(["Aunt Mary called.", "I forgot my blue file."]);
   const [chatInput, setChatInput] = useState("");
   const [chatLog, setChatLog] = useState<{ sender: "user" | "other"; text: string }[]>([
@@ -28,7 +39,6 @@ export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
     setChatLog(newLog);
     setChatInput("");
 
-    // Check if message matches any safe-word (ignoring punctuation/case)
     const matches = safeWords.some((word) => {
       const cleanWord = word.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "").trim();
       const cleanMsg = msg.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "").trim();
@@ -43,145 +53,279 @@ export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
     }
   };
 
-  // Active journey timeline steps
+  const startTrip = () => {
+    if (transportMode === "cab" && (!cabNumber || !driverName || !cabService || !tripId)) {
+      alert("Please fill out all cab details to start a protected trip.");
+      return;
+    }
+    setIsJourneyActive(true);
+  };
+
+  const endTrip = () => {
+    setIsJourneyActive(false);
+    setTransportMode(null);
+    setCabNumber("");
+    setDriverName("");
+    setCabService("");
+    setTripId("");
+  };
+
   const journeySteps = [
-    { label: "Journey Started", location: "Connaught Place", time: "04:38 AM", done: true },
-    { label: "Checkpoint 1 Reached", location: "Minto Road Crossing", time: "04:40 AM", done: true },
-    { label: "Active Tracking", location: "Dynamic Safety En Route", time: "Live", done: !isEmergency, active: !isEmergency },
-    { label: "Destination Arrival", location: "Siri Fort Auditorium", time: "ETA 05:00 AM", done: false },
+    { label: "Journey Started", location: "Noida Sector 62", time: "09:40 AM", done: true },
+    { label: "Checkpoint 1 Reached", location: "Noida Sector 62 metro junction", time: "09:43 AM", done: true },
+    { label: "Active Tracking", location: "Live road vectors sync", time: "Live", done: !isEmergency, active: !isEmergency },
+    { label: "Destination Arrival", location: "Noida Sector 63 Hub", time: "ETA 09:55 AM", done: false },
   ];
 
   return (
     <div className="p-4 space-y-4">
-      {/* Active Trip Tracker */}
-      <div className="space-y-2">
-        <h3 className="text-[10px] text-white/40 uppercase tracking-widest font-bold flex items-center gap-1.5">
-          <MapPin size={10} className="text-emerald-400" /> Active Journey Tracker
-        </h3>
-        
-        <div className="p-3 bg-white/[0.01] border border-white/5 rounded-2xl relative">
-          <div className="absolute left-[26px] top-6 bottom-6 w-0.5 bg-white/5" />
-          
-          <div className="space-y-4">
-            {journeySteps.map((step, idx) => (
-              <div key={idx} className="flex items-start gap-4 pl-3 relative">
-                {step.active ? (
-                  <motion.div
-                    className="absolute left-1 w-3 h-3 rounded-full bg-cyan-400 z-10"
-                    animate={{ scale: [1, 1.4, 1] }}
-                    transition={{ repeat: Infinity, duration: 1.5 }}
-                  />
-                ) : (
-                  <div className={`absolute left-1 w-3 h-3 rounded-full z-10 border ${
-                    step.done
-                      ? isEmergency
-                        ? "bg-red-500 border-red-500"
-                        : "bg-emerald-500 border-emerald-500"
-                      : "bg-[#07070a] border-white/10"
-                  }`} />
-                )}
-                
-                <div className="flex-1 flex justify-between items-start">
-                  <div>
-                    <h4 className="text-xs font-semibold text-white/80">{step.label}</h4>
-                    <p className="text-[9px] text-white/30">{step.location}</p>
-                  </div>
-                  <span className="text-[8px] font-mono text-white/40">{step.time}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Invisible SOS safe-words configuration */}
-      <div className="space-y-2">
-        <h3 className="text-[10px] text-white/40 uppercase tracking-widest font-bold flex items-center gap-1.5">
-          <Lock size={10} className="text-emerald-400" /> Stealth Safe-Words Engine
-        </h3>
-
-        <div className="p-3 bg-white/[0.01] border border-white/5 rounded-2xl space-y-3">
-          <p className="text-[8px] text-white/40 leading-relaxed">
-            Configure words that trigger a **Silent SOS** when typed into a standard chat dialog:
-          </p>
-
-          <div className="flex flex-wrap gap-1.5">
-            {safeWords.map((word) => (
-              <span key={word} className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] text-white/60">
-                &quot;{word}&quot;
-              </span>
-            ))}
-          </div>
-
-          {/* Simulated chat preview */}
-          <div className="border border-white/5 rounded-xl bg-black/40 overflow-hidden">
-            <div className="bg-white/[0.02] border-b border-white/5 px-2 py-1.5 flex items-center justify-between text-[8px] text-white/30 font-mono">
-              <span>SIMULATED CHAT INTERFACE</span>
-              <span className="text-emerald-400">● SECURE</span>
+      {/* 1. EMPTY STATE - No Active Journey */}
+      {!isJourneyActive && (
+        <div className="space-y-4">
+          <div className="text-center py-6 border border-white/5 bg-white/[0.01] rounded-2xl p-4 space-y-3">
+            <div className="w-12 h-12 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mx-auto text-cyan-400">
+              <Shield size={24} />
             </div>
-            
-            <div className="p-2 space-y-1.5 max-h-24 overflow-y-auto">
-              {chatLog.map((log, i) => (
-                <div key={i} className={`flex ${log.sender === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`px-2 py-1 rounded-lg text-[9px] max-w-[80%] ${
-                    log.sender === "user" ? "bg-cyan-500/20 text-cyan-200" : "bg-white/5 text-white/60"
-                  }`}>
-                    {log.text}
-                  </div>
-                </div>
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">No active journey</h4>
+              <p className="text-[9px] text-white/40 mt-1 max-w-[200px] mx-auto">
+                Select your transport mode to start a protected trip.
+              </p>
+            </div>
+          </div>
+
+          {/* Transport Mode Selector */}
+          <div className="space-y-2">
+            <span className="text-[9px] uppercase tracking-wider text-white/40 block font-bold">Travelling By?</span>
+            <div className="grid grid-cols-5 gap-1 text-[8px] font-bold">
+              {[
+                { id: "walking" as const, label: "Walk", icon: <Footprints size={12} /> },
+                { id: "bike" as const, label: "Bike", icon: <Bike size={12} /> },
+                { id: "personal" as const, label: "Car", icon: <Car size={12} /> },
+                { id: "cab" as const, label: "Cab", icon: <Car className="text-yellow-400" size={12} /> },
+                { id: "public" as const, label: "Transit", icon: <Bus size={12} /> }
+              ].map((mode) => (
+                <button
+                  key={mode.id}
+                  onClick={() => setTransportMode(mode.id)}
+                  className={`p-2 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                    transportMode === mode.id
+                      ? "border-cyan-500/35 bg-cyan-500/10 text-cyan-400"
+                      : "border-white/5 bg-white/[0.01] text-white/55"
+                  }`}
+                >
+                  {mode.icon}
+                  <span>{mode.label}</span>
+                </button>
               ))}
             </div>
+          </div>
 
-            <div className="border-t border-white/5 p-1 flex gap-1 bg-black/20">
-              <input
-                type="text"
-                placeholder="Type 'Aunt Mary called.' to test..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                className="bg-transparent text-[9px] text-white outline-none w-full px-1.5"
-              />
-              <button
-                onClick={handleSendMessage}
-                className="bg-cyan-500/20 border border-cyan-400/20 text-cyan-400 text-[8px] px-2 py-0.5 rounded font-semibold"
-              >
-                Send
-              </button>
+          {/* Cab details form */}
+          {transportMode === "cab" && (
+            <div className="rounded-xl border border-white/5 bg-black/40 p-3 space-y-2 text-xs">
+              <span className="text-[9px] uppercase tracking-wider text-yellow-400 font-bold block mb-1">Enter Cab Details</span>
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  placeholder="Cab Number Plate (e.g. DL 1C A 1234)"
+                  value={cabNumber}
+                  onChange={(e) => setCabNumber(e.target.value)}
+                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Driver Name"
+                  value={driverName}
+                  onChange={(e) => setDriverName(e.target.value)}
+                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Cab Service (e.g. Uber, Ola)"
+                  value={cabService}
+                  onChange={(e) => setCabService(e.target.value)}
+                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Trip ID / Booking Ref"
+                  value={tripId}
+                  onChange={(e) => setTripId(e.target.value)}
+                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {transportMode && (
+            <button
+              onClick={startTrip}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 text-xs font-bold uppercase tracking-wider hover:from-emerald-500 hover:to-emerald-600 transition-all text-white"
+            >
+              Start Safe Trip
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 2. ACTIVE JOURNEY DASHBOARD */}
+      {isJourneyActive && (
+        <div className="space-y-4">
+          
+          {/* Reassurance panel */}
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 space-y-2 text-center relative overflow-hidden">
+            <span className="text-[10px] font-bold text-emerald-400 flex items-center justify-center gap-1 uppercase tracking-wider">
+              <ShieldCheck size={14} className="animate-pulse" /> 🛡️ You Are Protected
+            </span>
+            
+            <div className="grid grid-cols-4 gap-1 border-t border-white/5 pt-2.5 text-[8px] font-mono text-white/55">
+              <div>
+                <span className="block text-[7px] text-white/30 uppercase">Guardians</span>
+                <span className="text-white font-bold">3 Nearby</span>
+              </div>
+              <div>
+                <span className="block text-[7px] text-white/30 uppercase">Co-Travellers</span>
+                <span className="text-white font-bold">5 Online</span>
+              </div>
+              <div>
+                <span className="block text-[7px] text-white/30 uppercase">Safe Haven</span>
+                <span className="text-cyan-400 font-bold">400m</span>
+              </div>
+              <div>
+                <span className="block text-[7px] text-white/30 uppercase">Safety Score</span>
+                <span className="text-emerald-400 font-bold">92/100</span>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Shadow Witness Ledger */}
-      <div className="space-y-2">
-        <h3 className="text-[10px] text-white/40 uppercase tracking-widest font-bold flex items-center gap-1.5">
-          <ShieldAlert size={10} className="text-emerald-400" /> Evidence Vault Ledger
-        </h3>
+          {/* Cab Specific Monitoring Badges */}
+          {transportMode === "cab" && (
+            <div className="p-3 bg-black/40 border border-white/5 rounded-xl space-y-2 text-[9px] font-mono">
+              <div className="flex justify-between items-center text-yellow-400 font-bold">
+                <span>🚕 CAB TRIP IN PROGRESS</span>
+                <span className="text-emerald-400 animate-pulse text-[8px]">✓ TRIP PROTECTED</span>
+              </div>
+              <div className="text-white/50 space-y-0.5 text-[8px]">
+                <div>Cab: <span className="text-white font-bold">{cabNumber}</span> ({cabService})</div>
+                <div>Driver: <span className="text-white font-bold">{driverName}</span></div>
+                <div>Trip ID: <span className="text-white font-bold">{tripId}</span></div>
+              </div>
+              <div className="border-t border-white/5 pt-1.5 flex justify-between text-[7px] text-white/40">
+                <span>🛡️ GUARDIAN MONITORING ACTIVE</span>
+                <span>🚨 EMERGENCY READY</span>
+              </div>
+            </div>
+          )}
 
-        <div className="space-y-2">
-          {evidence.map((chunk) => (
-            <div
-              key={chunk.id}
-              className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                {chunk.type === "video" ? (
-                  <Video size={12} className="text-cyan-400" />
-                ) : (
-                  <Mic size={12} className="text-purple-400" />
-                )}
-                <div>
-                  <h4 className="text-[10px] font-mono font-bold text-white/70">{chunk.hash}</h4>
-                  <p className="text-[8px] text-white/30">Size: {chunk.size} · {chunk.timestamp}</p>
+          {/* Active Trip Tracker */}
+          <div className="space-y-2">
+            <h3 className="text-[10px] text-white/40 uppercase tracking-widest font-bold flex items-center gap-1.5">
+              <MapPin size={10} className="text-emerald-400" /> Active Journey Tracker
+            </h3>
+            
+            <div className="p-3 bg-white/[0.01] border border-white/5 rounded-2xl relative">
+              <div className="absolute left-[26px] top-6 bottom-6 w-0.5 bg-white/5" />
+              
+              <div className="space-y-4">
+                {journeySteps.map((step, idx) => (
+                  <div key={idx} className="flex items-start gap-4 pl-3 relative">
+                    {step.active ? (
+                      <motion.div
+                        className="absolute left-1 w-3 h-3 rounded-full bg-cyan-400 z-10"
+                        animate={{ scale: [1, 1.4, 1] }}
+                        transition={{ repeat: Infinity, duration: 1.5 }}
+                      />
+                    ) : (
+                      <div className={`absolute left-1 w-3 h-3 rounded-full z-10 border ${
+                        step.done
+                          ? isEmergency
+                            ? "bg-red-500 border-red-500"
+                            : "bg-emerald-500 border-emerald-500"
+                            : "bg-[#07070a] border-white/10"
+                      }`} />
+                    )}
+                    
+                    <div className="flex-1 flex justify-between items-start">
+                      <div>
+                        <h4 className="text-xs font-semibold text-white/80">{step.label}</h4>
+                        <p className="text-[9px] text-white/30">{step.location}</p>
+                      </div>
+                      <span className="text-[8px] font-mono text-white/40">{step.time}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Stealth Safe-Words Engine */}
+          <div className="space-y-2">
+            <h3 className="text-[10px] text-white/40 uppercase tracking-widest font-bold flex items-center gap-1.5">
+              <Lock size={10} className="text-emerald-400" /> Stealth Safe-Words Engine
+            </h3>
+
+            <div className="p-3 bg-white/[0.01] border border-white/5 rounded-2xl space-y-3">
+              <p className="text-[8px] text-white/40 leading-relaxed">
+                Configure words that trigger a **Silent SOS** when typed into a standard chat dialog:
+              </p>
+
+              <div className="flex flex-wrap gap-1.5">
+                {safeWords.map((word) => (
+                  <span key={word} className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] text-white/60">
+                    &quot;{word}&quot;
+                  </span>
+                ))}
+              </div>
+
+              {/* Simulated chat preview */}
+              <div className="border border-white/5 rounded-xl bg-black/40 overflow-hidden">
+                <div className="bg-white/[0.02] border-b border-white/5 px-2 py-1.5 flex items-center justify-between text-[8px] text-white/30 font-mono">
+                  <span>SIMULATED CHAT INTERFACE</span>
+                  <span className="text-emerald-400">● SECURE</span>
+                </div>
+                
+                <div className="p-2 space-y-1.5 max-h-24 overflow-y-auto">
+                  {chatLog.map((log, i) => (
+                    <div key={i} className={`flex ${log.sender === "user" ? "justify-end" : "justify-start"}`}>
+                      <div className={`px-2 py-1 rounded-lg text-[9px] max-w-[80%] ${
+                        log.sender === "user" ? "bg-cyan-500/20 text-cyan-200" : "bg-white/5 text-white/60"
+                      }`}>
+                        {log.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-white/5 p-1 flex gap-1 bg-black/20">
+                  <input
+                    type="text"
+                    placeholder="Type 'Aunt Mary called.' to test..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                    className="bg-transparent text-[9px] text-white outline-none w-full px-1.5"
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    className="bg-cyan-500/20 border border-cyan-400/20 text-cyan-400 text-[8px] px-2 py-0.5 rounded font-semibold"
+                  >
+                    Send
+                  </button>
                 </div>
               </div>
-              <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[8px] text-emerald-400 font-semibold font-mono">
-                <ShieldCheck size={8} /> LOCKED
-              </span>
             </div>
-          ))}
+          </div>
+
+          {/* Complete Trip Trigger Button */}
+          <button
+            onClick={endTrip}
+            className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-xs font-bold uppercase tracking-wider text-white"
+          >
+            Complete Journey
+          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }

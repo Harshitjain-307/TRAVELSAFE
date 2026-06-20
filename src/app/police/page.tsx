@@ -12,10 +12,15 @@ import {
   RotateCcw,
   AlertOctagon,
   TrendingUp,
-  Bell
+  Bell,
+  Radio,
+  Car,
 } from "lucide-react";
 import { useTravelSafeStore } from "@/store/useTravelSafeStore";
 import { useMockStreams } from "@/hooks/useMockStreams";
+import { useLiveTracking } from "@/hooks/useLiveTracking";
+import { ResponderStatusPanel } from "@/components/tracking/ResponderStatusPanel";
+import { formatDistance, formatEta, getGuardians, getPolice, isTrackingActive } from "@/lib/tracking";
 import dynamic from "next/dynamic";
 
 const CrimeChart = dynamic(() => import("@/components/police/CrimeChart"), {
@@ -26,6 +31,10 @@ const PoliceCommandMap = dynamic(() => import("@/components/police/PoliceCommand
   ssr: false,
 });
 
+const LiveTrackingMap = dynamic(() => import("@/components/tracking/LiveTrackingMap"), {
+  ssr: false,
+});
+
 interface TimelineLog {
   time: string;
   msg: string;
@@ -33,11 +42,16 @@ interface TimelineLog {
 }
 
 export default function PolicePage() {
-  useMockStreams(); // Start streams
+  useMockStreams();
 
-  // Zustand state triggers
   const setSystemMode = useTravelSafeStore((s) => s.setSystemMode);
   const addNotification = useTravelSafeStore((s) => s.addNotification);
+  const dispatchPoliceUnit = useTravelSafeStore((s) => s.dispatchPoliceUnit);
+  const { startDemo, stopDemo, dispatchPolice, snapshot, connected } = useLiveTracking();
+
+  const trackingActive = isTrackingActive(snapshot);
+  const liveGuardians = getGuardians(snapshot?.incident?.responders || []);
+  const livePolice = getPolice(snapshot?.incident?.responders || []);
 
   // Simulation Controls & Position states
   const [isPlaying, setIsPlaying] = useState(false);
@@ -215,6 +229,8 @@ export default function PolicePage() {
   const handleStartSim = () => {
     setSimStep(0);
     setIsPlaying(true);
+    startDemo();
+    setSystemMode("ALERT");
   };
 
   const handleResetSim = () => {
@@ -222,6 +238,7 @@ export default function PolicePage() {
     setSimStep(0);
     setIncidentState("SAFE");
     setSystemMode("SAFE");
+    stopDemo();
     setPositions({
       victim: [28.6273, 77.3725],
       device: [28.6273, 77.3725],
@@ -245,6 +262,7 @@ export default function PolicePage() {
   };
 
   const isEmergencyActive = incidentState !== "SAFE" && incidentState !== "ACTIVE_JOURNEY" && incidentState !== "RECOVERED";
+  const showLiveMap = trackingActive || isEmergencyActive;
 
   return (
     <div className={`min-h-screen relative overflow-hidden ${isEmergencyActive ? "grid-bg-emergency bg-[#0d0404]" : "grid-bg bg-[#050508]"} transition-colors duration-1000 text-white`}>
@@ -269,10 +287,14 @@ export default function PolicePage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <span className="text-[10px] px-2.5 py-1 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-mono text-[9px] font-bold flex items-center gap-1">
+            <Radio size={10} className={connected ? "animate-pulse" : ""} />
+            {connected ? "LIVE GPS" : "CONNECTING"}
+          </span>
           <span className="text-[10px] px-2.5 py-1 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-mono text-[9px] font-bold">
             SECTOR: DELHI-NCR COMMAND
           </span>
-          <span className={`w-2.5 h-2.5 rounded-full ${isEmergencyActive ? "bg-red-500 animate-pulse" : "bg-purple-400"}`} />
+          <span className={`w-2.5 h-2.5 rounded-full ${isEmergencyActive || trackingActive ? "bg-red-500 animate-pulse" : "bg-purple-400"}`} />
         </div>
       </nav>
 
@@ -298,7 +320,7 @@ export default function PolicePage() {
                     : "bg-gradient-to-r from-red-600 to-purple-600 border-red-500/20 text-white hover:shadow-[0_0_20px_rgba(168,85,247,0.4)]"
                 }`}
               >
-                <Play size={12} /> Simulate Incident
+                <Play size={12} /> Simulate Emergency
               </button>
               
               <button
@@ -340,6 +362,36 @@ export default function PolicePage() {
                     <span className="text-white font-bold">{metrics.remaining} KM</span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Live Responder Dispatch */}
+            {(trackingActive || isEmergencyActive) && (
+              <div className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-2">
+                <span className="text-[8px] uppercase tracking-wider text-blue-400 font-bold block">Live Responder Status</span>
+                {liveGuardians.map((g) => (
+                  <div key={g.id} className="flex justify-between text-[9px] font-mono text-white/60">
+                    <span className="text-yellow-400">🟡 {g.name}</span>
+                    <span>{formatDistance(g.distanceKm)} · ETA {formatEta(g.etaMinutes)}</span>
+                  </div>
+                ))}
+                {livePolice.map((p) => (
+                  <div key={p.id} className="flex justify-between text-[9px] font-mono text-white/60">
+                    <span className="text-blue-400">🔵 {p.name}</span>
+                    <span>{formatDistance(p.distanceKm)} · ETA {formatEta(p.etaMinutes)}</span>
+                  </div>
+                ))}
+                {livePolice.length === 0 && (
+                  <button
+                    onClick={() => {
+                      dispatchPolice("p-14");
+                      dispatchPoliceUnit("u1", true);
+                    }}
+                    className="w-full py-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 text-[9px] font-bold uppercase flex items-center justify-center gap-1 hover:bg-blue-600/30"
+                  >
+                    <Car size={10} /> Dispatch P-14 (Inspector Sharma)
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -407,15 +459,19 @@ export default function PolicePage() {
 
           {/* Map Display Container */}
           <div className="relative rounded-3xl border border-white/10 bg-black/40 overflow-hidden h-[460px] shadow-2xl">
-            <PoliceCommandMap
-              isEmergency={isEmergencyActive}
-              simStep={simStep}
-              layers={layers}
-              victimPos={positions.victim}
-              devicePos={positions.device}
-              policePos={positions.police}
-              guardianPos={positions.guardian}
-            />
+            {showLiveMap && trackingActive ? (
+              <LiveTrackingMap snapshot={snapshot} viewMode="command" height="460px" />
+            ) : (
+              <PoliceCommandMap
+                isEmergency={isEmergencyActive}
+                simStep={simStep}
+                layers={layers}
+                victimPos={positions.victim}
+                devicePos={positions.device}
+                policePos={positions.police}
+                guardianPos={positions.guardian}
+              />
+            )}
 
             {/* Top Left Live HUD indicator */}
             <div className="absolute top-4 left-4 z-20 px-3 py-1.5 rounded-xl bg-black/85 border border-white/10 backdrop-blur-md space-y-1 text-[8px] font-mono text-white/50">
@@ -427,17 +483,10 @@ export default function PolicePage() {
             </div>
 
             {/* Bottom Left Interception Panel overlay */}
-            {isEmergencyActive && simStep >= 2 && (
-              <div className="absolute bottom-4 left-4 z-20 p-3 rounded-2xl bg-black/90 border border-white/10 backdrop-blur-md max-w-[210px] space-y-1.5 text-[9px] font-mono">
-                <span className="text-[8px] uppercase tracking-wider text-cyan-400 font-bold block">INTERCEPTION SYSTEM ACTIVE</span>
-                <div className="text-white/60 space-y-0.5">
-                  <div>Unit: <span className="text-white font-bold">Police P-14</span></div>
-                  <div>ETA: <span className="text-cyan-400 font-bold">3 Minutes</span></div>
-                  <div>Distance: <span className="text-white">1.7 KM Away</span></div>
-                </div>
-                <div className="w-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded py-0.5 text-center text-[7px] font-extrabold uppercase animate-pulse">
-                  Routing Intercept Path
-                </div>
+            {(isEmergencyActive || trackingActive) && (
+              <div className="absolute bottom-4 left-4 z-20 p-3 rounded-2xl bg-black/90 border border-white/10 backdrop-blur-md max-w-[240px] space-y-2 text-[9px] font-mono">
+                <span className="text-[8px] uppercase tracking-wider text-cyan-400 font-bold block">LIVE INTERCEPTION</span>
+                <ResponderStatusPanel snapshot={snapshot} variant="police" compact />
               </div>
             )}
           </div>

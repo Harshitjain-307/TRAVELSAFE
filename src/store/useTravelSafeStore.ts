@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   SystemMode,
   GuardianNode,
@@ -9,6 +10,8 @@ import type {
   GrabSenseData,
   SafetyMetrics,
   EmergencyPacket,
+  TrackingSnapshot,
+  ResponderUpdatePayload,
 } from "@/types";
 
 export type UserPersona = "CIVILIAN" | "GUARDIAN" | "POLICE" | "ADMIN";
@@ -25,9 +28,10 @@ interface TravelSafeState {
   isAuthenticated: boolean;
   aadhaarNumber: string;
   mobileNumber: string;
+  userName: string;
   trustScore: number;
   isVerifying: boolean;
-  verificationStep: "INPUT" | "OTP" | "FACE" | "SUCCESS";
+  verificationStep: "INPUT" | "OTP" | "FACE" | "SUCCESS" | "BIOMETRIC";
 
   // System Mode & Core Simulation
   systemMode: SystemMode;
@@ -76,12 +80,16 @@ interface TravelSafeState {
   escalationStage: number;
   isXyroSimulating: boolean;
 
+  // Live Responder Tracking (Socket.io)
+  trackingConnected: boolean;
+  trackingSnapshot: TrackingSnapshot | null;
+
   // Actions
   setUserPersona: (p: UserPersona | null) => void;
   setAuthStatus: (auth: boolean) => void;
   startVerification: () => void;
-  setVerificationStep: (step: "INPUT" | "OTP" | "FACE" | "SUCCESS") => void;
-  setAadhaarDetails: (aadhaar: string, mobile: string) => void;
+  setVerificationStep: (step: "INPUT" | "OTP" | "FACE" | "SUCCESS" | "BIOMETRIC") => void;
+  setAadhaarDetails: (aadhaar: string, mobile: string, name?: string) => void;
   setSystemMode: (mode: SystemMode) => void;
   startThreatSimulation: () => void;
   stopThreatSimulation: () => void;
@@ -102,6 +110,13 @@ interface TravelSafeState {
   dispatchPoliceUnit: (id: string, dispatch: boolean) => void;
   toggleCctv: () => void;
   approveAadhaarAccount: (id: string) => void;
+
+  // Live Tracking Actions
+  setTrackingConnected: (connected: boolean) => void;
+  setTrackingSnapshot: (snapshot: TrackingSnapshot) => void;
+  updateLiveResponder: (payload: ResponderUpdatePayload) => void;
+  startLiveTrackingDemo: () => void;
+  stopLiveTrackingDemo: () => void;
 
   // Global Actions
   toggleTheme: () => void;
@@ -188,13 +203,16 @@ const defaultTimeline: TimelineEvent[] = [
   { stage: "+15", title: "Resolution", threatScore: 0, aiConfidence: 0, action: "Pending", timestamp: "--:--", active: false, completed: false },
 ];
 
-export const useTravelSafeStore = create<TravelSafeState>((set, get) => ({
-  // Authentication & Persona
-  userPersona: null,
-  isAuthenticated: false,
-  aadhaarNumber: "",
-  mobileNumber: "",
-  trustScore: 98,
+export const useTravelSafeStore = create<TravelSafeState>()(
+  persist(
+    (set, get) => ({
+      // Authentication & Persona
+      userPersona: null,
+      isAuthenticated: false,
+      aadhaarNumber: "",
+      mobileNumber: "",
+      userName: "Priya Sharma",
+      trustScore: 98,
   isVerifying: false,
   verificationStep: "INPUT",
 
@@ -265,12 +283,16 @@ export const useTravelSafeStore = create<TravelSafeState>((set, get) => ({
   escalationStage: 0,
   isXyroSimulating: false,
 
+  // Live Tracking
+  trackingConnected: false,
+  trackingSnapshot: null,
+
   // Actions
   setUserPersona: (p) => set({ userPersona: p }),
   setAuthStatus: (auth) => set({ isAuthenticated: auth }),
   startVerification: () => set({ isVerifying: true, verificationStep: "INPUT" }),
   setVerificationStep: (step) => set({ verificationStep: step }),
-  setAadhaarDetails: (aadhaar, mobile) => set({ aadhaarNumber: aadhaar, mobileNumber: mobile }),
+  setAadhaarDetails: (aadhaar, mobile, name) => set({ aadhaarNumber: aadhaar, mobileNumber: mobile, userName: name || "Priya Sharma" }),
 
   setSystemMode: (mode) => set({ systemMode: mode }),
 
@@ -413,11 +435,11 @@ export const useTravelSafeStore = create<TravelSafeState>((set, get) => ({
   acceptGuardianMission: (id) => {
     set({ activeGuardianMission: id });
     if (id) {
-      get().addNotification("Guardian Accepted Incident Mission. Rerouting map routes.");
+      get().addNotification("Guardian Accepted Incident Mission. Live GPS tracking started.");
       set((state) => ({
         chatMessages: [
           ...state.chatMessages,
-          { sender: "Guardian Responder", text: "Accepting CP alert. I am 300m away, heading your way now.", time: "04:42" },
+          { sender: "Guardian Responder", text: "🟢 YES, I'M GOING — Live coordinates shared. ETA updating.", time: "04:42" },
         ],
       }));
     }
@@ -487,6 +509,47 @@ export const useTravelSafeStore = create<TravelSafeState>((set, get) => ({
     xyroCountdown: Math.max(0, state.xyroCountdown - 1)
   })),
 
+  // Live Tracking
+  setTrackingConnected: (connected) => set({ trackingConnected: connected }),
+
+  setTrackingSnapshot: (snapshot) => set({ trackingSnapshot: snapshot }),
+
+  updateLiveResponder: (payload) =>
+    set((state) => {
+      if (!state.trackingSnapshot?.incident) return state;
+      const responders = state.trackingSnapshot.incident.responders.map((r) =>
+        r.id === payload.responderId
+          ? {
+              ...r,
+              lat: payload.lat,
+              lng: payload.lng,
+              speed: payload.speed,
+              direction: payload.direction,
+              distanceKm: payload.distanceKm,
+              etaMinutes: payload.etaMinutes,
+              routeProgress: payload.routeProgress / 100,
+              status: payload.status,
+            }
+          : r
+      );
+      return {
+        trackingSnapshot: {
+          ...state.trackingSnapshot,
+          incident: { ...state.trackingSnapshot.incident, responders },
+          responders,
+        },
+      };
+    }),
+
+  startLiveTrackingDemo: () => {
+    get().addNotification("🚨 Live Tracking Demo: Emergency triggered — responders routing.");
+  },
+
+  stopLiveTrackingDemo: () => {
+    set({ trackingSnapshot: null });
+    get().addNotification("Live tracking simulation stopped.");
+  },
+
   // Global Settings Toggle
   toggleTheme: () => set((state) => ({ theme: state.theme === "dark" ? "light" : "dark" })),
   setLanguage: (lang) => set({ activeLanguage: lang }),
@@ -508,4 +571,18 @@ export const useTravelSafeStore = create<TravelSafeState>((set, get) => ({
       ],
     }));
   },
-}));
+}), {
+  name: "travelsafe-persist-storage",
+  storage: createJSONStorage(() => localStorage),
+  partialize: (state) => ({
+    userPersona: state.userPersona,
+    isAuthenticated: state.isAuthenticated,
+    aadhaarNumber: state.aadhaarNumber,
+    mobileNumber: state.mobileNumber,
+    userName: state.userName,
+    trustScore: state.trustScore,
+    theme: state.theme,
+    activeLanguage: state.activeLanguage,
+  }),
+})
+);
