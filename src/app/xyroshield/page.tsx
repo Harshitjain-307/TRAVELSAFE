@@ -64,6 +64,7 @@ export default function XyroShieldPage() {
   const [mapCenter, setMapCenter] = useState({ lat: 28.6273, lng: 77.3725 });
   const [mapMarkers, setMapMarkers] = useState<{ id: string; lat: number; lng: number; label: string; type: "victim" | "guardian" | "police" | "safezone" }[]>([]);
   const [mapRoute, setMapRoute] = useState<[number, number][]>([]);
+  const [deviceTrail, setDeviceTrail] = useState<[number, number][]>([]);
 
   // Core Visualizer metrics
   const [gripConfidence, setGripConfidence] = useState(99);
@@ -114,6 +115,7 @@ export default function XyroShieldPage() {
           setMapCenter({ lat: 28.6273, lng: 77.3725 });
           setMapMarkers([{ id: "v", lat: 28.6273, lng: 77.3725, label: "Priya Sharma (Secure)", type: "victim" }]);
           setMapRoute([]);
+          setDeviceTrail([[28.6273, 77.3725]]);
           addLog("Dual System Calibration: Kinematics 99%, Acoustic baseline stable.");
           break;
         case 1:
@@ -155,12 +157,14 @@ export default function XyroShieldPage() {
           setXyroStatus("SHUTDOWN");
           setMapCenter({ lat: 28.6285, lng: 77.3745 });
           setMapMarkers([{ id: "v", lat: 28.6285, lng: 77.3745, label: "Dummy powered off (Secret GPS active)", type: "victim" }]);
+          setDeviceTrail(prev => [...prev, [28.6285, 77.3745]]);
           addLog("Stealth Mode: Dummy powering off visible on civilian app.");
           break;
         case 7:
           setXyroStatus("TRACKING");
           setMapCenter({ lat: 28.6295, lng: 77.3765 });
           setMapMarkers([{ id: "v", lat: 28.6295, lng: 77.3765, label: "Theft target: 48 km/h heading N-NE", type: "victim" }]);
+          setDeviceTrail(prev => [...prev, [28.6295, 77.3765]]);
           addLog("GPS Tracking: Beacon active. Communcating live vectors to Police Command.");
           addNotification("System Control: GPS beacon tracking activated.");
           break;
@@ -193,6 +197,7 @@ export default function XyroShieldPage() {
             { id: "g2", lat: 28.6335, lng: 77.3840, label: "Guardian Sneha (ETA 3m)", type: "guardian" }
           ]);
           setMapRoute([[28.6255, 77.3710], [28.6310, 77.3780], [28.6335, 77.3840]]);
+          setDeviceTrail(prev => [...prev, [28.6310, 77.3780]]);
           addLog("Multi-Guardian: Responders Sneha G. (ETA 3m) & Amit T. (ETA 5m) converged.");
           break;
         case 12:
@@ -517,6 +522,7 @@ export default function XyroShieldPage() {
     setPolicePriority("NORMAL");
     setSelectedGuardianOption(null);
     setEvidenceUploaded(false);
+    setDeviceTrail([]);
     setTimelineLogs(["[05:15:00] TravelSafe X: Combined Escalation Engine online & monitoring."]);
   };
 
@@ -726,6 +732,35 @@ export default function XyroShieldPage() {
                 </div>
               </div>
 
+              {/* Floating Status Badge */}
+              <div className="absolute top-8 right-4 z-40">
+                {xyroStatus === "SECURE" && voiceState === "NORMAL" && (
+                  <span className="text-[7px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]">
+                    🟢 SECURE
+                  </span>
+                )}
+                {(xyroStatus === "SUSPICIOUS" || voiceState === "SUSPICIOUS") && (
+                  <span className="text-[7px] font-mono font-bold px-2 py-0.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.3)] animate-pulse">
+                    🟡 SUSPICIOUS
+                  </span>
+                )}
+                {(xyroStatus === "GRAB_DETECTED" || voiceState === "EMERGENCY") && (
+                  <span className="text-[7px] font-mono font-bold px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.4)] animate-pulse">
+                    🔴 GRAB DETECTED
+                  </span>
+                )}
+                {xyroStatus === "SHUTDOWN" && (
+                  <span className="text-[7px] font-mono font-bold px-2 py-0.5 rounded-full bg-zinc-800 border border-white/5 text-zinc-500">
+                    ⚫ STEALTH
+                  </span>
+                )}
+                {xyroStatus === "TRACKING" && (
+                  <span className="text-[7px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.3)] animate-pulse">
+                    📍 TRACKING
+                  </span>
+                )}
+              </div>
+
               {/* Central Screens */}
               <div className="flex-1 flex flex-col justify-center py-4 text-center relative">
                 
@@ -787,7 +822,16 @@ export default function XyroShieldPage() {
                       <div>✓ Police Link: Initialized</div>
                     </div>
 
-                    <button className="w-full py-1.5 rounded-lg bg-emerald-600 text-[8px] font-bold uppercase tracking-wider">
+                    <button
+                      onClick={() => {
+                        handleReset();
+                        setXyroStatus("SECURE");
+                        setVoiceState("NORMAL");
+                        setCountdown(10);
+                        addLog("User confirmed safe. Alert cancelled. Returning to monitoring mode.");
+                      }}
+                      className="w-full py-1.5 rounded-lg bg-emerald-600 text-[8px] font-bold uppercase tracking-wider hover:bg-emerald-500 transition-colors"
+                    >
                       CANCEL ALERT (I&apos;M SAFE)
                     </button>
                   </div>
@@ -902,8 +946,10 @@ export default function XyroShieldPage() {
                 lat={mapCenter.lat}
                 lng={mapCenter.lng}
                 markers={mapMarkers}
-                routeCoordinates={mapRoute}
-                lineColor={xyroStatus === "TRACKING" ? "#ef4444" : "#10b981"}
+                routeCoordinates={deviceTrail}
+                lineColor="#ef4444"
+                secondaryRouteCoordinates={mapRoute}
+                secondaryLineColor="#eab308"
               />
             </div>
 

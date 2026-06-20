@@ -58,6 +58,21 @@ export default function PolicePage() {
   const [simStep, setSimStep] = useState(0);
   const [incidentState, setIncidentState] = useState<"SAFE" | "ACTIVE_JOURNEY" | "INCIDENT_ALERT" | "TRACKING" | "RECOVERED">("SAFE");
 
+  // Authentication & Officer info
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [officerId, setOfficerId] = useState("");
+  const [badgeNumber, setBadgeNumber] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Dispatch selector
+  const [vehicleType, setVehicleType] = useState<"pcr" | "interceptor" | "bike">("pcr");
+  const [dispatchStatus, setDispatchStatus] = useState<"Standby" | "En Route" | "On Scene">("Standby");
+
+  // FIR states
+  const [firStatusText, setFirStatusText] = useState("");
+
   // Moving coordinate positions for Noida Sector 62 & 63
   const [positions, setPositions] = useState({
     victim: [28.6273, 77.3725] as [number, number],
@@ -116,6 +131,7 @@ export default function PolicePage() {
       switch (simStep) {
         case 0: // Commuter is travelling normally (Green Route)
           setIncidentState("ACTIVE_JOURNEY");
+          setDispatchStatus("Standby");
           setPositions({
             victim: [28.6285, 77.3715],
             device: [28.6285, 77.3715],
@@ -135,6 +151,7 @@ export default function PolicePage() {
         case 1: // Emergency Detected (Phone Snatch + Scream)
           setSystemMode("ALERT");
           setIncidentState("INCIDENT_ALERT");
+          setDispatchStatus("En Route");
           setPositions({
             victim: [28.6310, 77.3780],
             device: [28.6310, 77.3780],
@@ -155,6 +172,7 @@ export default function PolicePage() {
 
         case 2: // Device Fleeing, Responders Accepting
           setIncidentState("TRACKING");
+          setDispatchStatus("En Route");
           setPositions({
             victim: [28.6310, 77.3780], // Stranded
             device: [28.6340, 77.3750], // Fleeing
@@ -174,6 +192,7 @@ export default function PolicePage() {
           break;
 
         case 3: // Interception Closes
+          setDispatchStatus("En Route");
           setPositions({
             victim: [28.6310, 77.3780],
             device: [28.6360, 77.3720],
@@ -194,6 +213,7 @@ export default function PolicePage() {
         case 4: // Intercepted and Recovered
           setIncidentState("RECOVERED");
           setSystemMode("SAFE");
+          setDispatchStatus("On Scene");
           setPositions({
             victim: [28.6310, 77.3780],
             device: [28.6360, 77.3720],
@@ -239,6 +259,8 @@ export default function PolicePage() {
     setIncidentState("SAFE");
     setSystemMode("SAFE");
     stopDemo();
+    setDispatchStatus("Standby");
+    setFirStatusText("");
     setPositions({
       victim: [28.6273, 77.3725],
       device: [28.6273, 77.3725],
@@ -287,6 +309,15 @@ export default function PolicePage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {isAuthenticated && (
+            <div className="flex items-center gap-2.5 border-r border-white/10 pr-4 mr-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="text-left font-mono">
+                <span className="text-[9px] font-bold text-white/90 block">Inspector Vikram Sharma</span>
+                <span className="text-[7px] text-white/40 block">Sub-Inspector · Sector 62 PS, Noida (Delhi-NCR East)</span>
+              </div>
+            </div>
+          )}
           <span className="text-[10px] px-2.5 py-1 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-mono text-[9px] font-bold flex items-center gap-1">
             <Radio size={10} className={connected ? "animate-pulse" : ""} />
             {connected ? "LIVE GPS" : "CONNECTING"}
@@ -365,6 +396,46 @@ export default function PolicePage() {
               </div>
             )}
 
+            {/* Enhanced Dispatch Center */}
+            <div className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-3">
+              <span className="text-[8px] uppercase tracking-wider text-purple-400 font-bold block">🚨 Tactical Dispatch Center</span>
+              
+              <div className="space-y-1.5">
+                <label className="text-[8px] text-white/40 block font-mono">SELECT UNIT VEHICLE</label>
+                <select
+                  value={vehicleType}
+                  onChange={(e) => setVehicleType(e.target.value as any)}
+                  className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-[9px] text-white/80 focus:border-purple-500 outline-none"
+                >
+                  <option value="pcr">PCR Van (Alpha-1)</option>
+                  <option value="interceptor">High-Speed Interceptor (Beta-4)</option>
+                  <option value="bike">Patrol Bike (Charlie-2)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[9px] font-mono">
+                <div className="bg-white/[0.02] border border-white/5 p-1.5 rounded">
+                  <span className="text-white/30 block text-[7px] uppercase font-bold">Assigned Officer</span>
+                  <span className="text-white font-semibold truncate block">
+                    {vehicleType === "pcr" ? "Officer Amit Kumar" : vehicleType === "interceptor" ? "Inspector V. Sharma" : "Officer Rahul Dev"}
+                  </span>
+                </div>
+                <div className="bg-white/[0.02] border border-white/5 p-1.5 rounded">
+                  <span className="text-white/30 block text-[7px] uppercase font-bold">Unit Status</span>
+                  <span className={`font-bold block ${dispatchStatus === "On Scene" ? "text-emerald-400 animate-pulse" : dispatchStatus === "En Route" ? "text-amber-400" : "text-white/40"}`}>
+                    {dispatchStatus}
+                  </span>
+                </div>
+              </div>
+
+              {incidentState !== "SAFE" && (
+                <div className="bg-white/[0.02] border border-white/5 p-2 rounded text-[9px] font-mono flex justify-between items-center">
+                  <span className="text-white/40">Unit ETA:</span>
+                  <span className="text-cyan-400 font-bold">{metrics.eta !== "--" ? metrics.eta : "4 Minutes"}</span>
+                </div>
+              )}
+            </div>
+
             {/* Live Responder Dispatch */}
             {(trackingActive || isEmergencyActive) && (
               <div className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-2">
@@ -389,7 +460,7 @@ export default function PolicePage() {
                     }}
                     className="w-full py-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 text-[9px] font-bold uppercase flex items-center justify-center gap-1 hover:bg-blue-600/30"
                   >
-                    <Car size={10} /> Dispatch P-14 (Inspector Sharma)
+                    <Car size={10} /> Dispatch {vehicleType === "pcr" ? "PCR Van (Alpha-1)" : vehicleType === "interceptor" ? "Interceptor (Beta-4)" : "Patrol Bike (Charlie-2)"}
                   </button>
                 )}
               </div>
@@ -538,7 +609,7 @@ export default function PolicePage() {
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-black/50 border border-white/5 h-36 overflow-y-auto font-mono text-[9px] text-white/50 space-y-2 leading-relaxed">
+            <div className="p-3 rounded-xl bg-black/50 border border-white/5 h-36 overflow-y-auto font-mono text-[9px] text-white/50 space-y-2 leading-relaxed font-mono">
               {incidentState !== "SAFE" ? (
                 <>
                   <p className="text-center font-bold text-white border-b border-white/5 pb-1">FIR RECORD SUMMARY</p>
@@ -549,6 +620,11 @@ export default function PolicePage() {
                   {incidentState === "RECOVERED" && (
                     <p className="text-emerald-400 font-bold">✓ Suspect neutralized, device recovered, case ready for legal closure.</p>
                   )}
+                  {firStatusText && (
+                    <p className="text-yellow-400 font-bold mt-2 border-t border-white/5 pt-1.5 animate-pulse">
+                      Status: {firStatusText}
+                    </p>
+                  )}
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center text-white/20">
@@ -556,6 +632,64 @@ export default function PolicePage() {
                   <p className="mt-1">Waiting for incident trigger...</p>
                 </div>
               )}
+            </div>
+
+            {incidentState === "RECOVERED" && (
+              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                <button
+                  onClick={() => setFirStatusText("FIR Approved. Digitally signed via Aadhaar.")}
+                  className="py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-[8px] uppercase tracking-wider text-center transition-all"
+                >
+                  Approve FIR
+                </button>
+                <button
+                  onClick={() => setFirStatusText("Draft open for manual editing.")}
+                  className="py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold text-[8px] uppercase tracking-wider text-center transition-all"
+                >
+                  Edit Draft
+                </button>
+                <button
+                  onClick={() => setFirStatusText("Submitted to Noida Judicial Magistrate.")}
+                  className="py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-[8px] uppercase tracking-wider text-center transition-all"
+                >
+                  Submit
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Blockchain Evidence Vault */}
+          <div className="rounded-2xl border border-white/5 bg-white/[0.01] p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-white/5 pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white/70 flex items-center gap-1.5">
+                <Shield className="text-emerald-400" size={14} /> 🔒 Evidence Vault
+              </h3>
+              <span className="text-[7px] font-mono px-1.5 py-0.5 rounded font-bold uppercase bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                SECURED
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              {[
+                { name: "Audio Logs (VoiceShield)", hash: "0x3f2a...8c1f", time: "22:52 PM" },
+                { name: "GPS Track Logs", hash: "0x7e4a...3b3f", time: "22:53 PM" },
+                { name: "Incident Timeline Logs", hash: "0x1a8c...9e4a", time: "22:55 PM" },
+                { name: "Route History Ledger", hash: "0x5d9e...1b3f", time: "22:58 PM" }
+              ].map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center p-2 rounded-lg bg-black/40 border border-white/5 text-[9px] font-mono">
+                  <div className="space-y-0.5">
+                    <div className="font-semibold text-white/80">{item.name}</div>
+                    <div className="text-white/30 text-[7px] flex items-center gap-1">
+                      <span>Hash: {item.hash}</span>
+                      <span>·</span>
+                      <span>{item.time}</span>
+                    </div>
+                  </div>
+                  <span className="text-[7px] px-1 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold uppercase shrink-0">
+                    VERIFIED
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -572,6 +706,103 @@ export default function PolicePage() {
         </div>
       </div>
 
+      {/* Login Gate Overlay */}
+      {!isAuthenticated && (
+        <div className="fixed inset-0 z-50 bg-[#050508]/98 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[#0a0a0f]/90 border border-white/10 p-8 rounded-3xl space-y-6 shadow-2xl relative">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent" />
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 bg-purple-500/10 border border-purple-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(168,85,247,0.2)]">
+                <Shield className="text-purple-400 animate-pulse" size={28} />
+              </div>
+              <h2 className="text-lg font-black tracking-wide text-white uppercase mt-4">
+                🔒 Police Command Access
+              </h2>
+              <p className="text-xs text-white/40">
+                Restricted to verified law enforcement and police personnel.
+              </p>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!otpSent) {
+                  setOtpSent(true);
+                } else {
+                  setIsVerifying(true);
+                  setTimeout(() => {
+                    setIsVerifying(false);
+                    setIsAuthenticated(true);
+                  }, 1500);
+                }
+              }}
+              className="space-y-4"
+            >
+              {!otpSent ? (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] text-white/40 font-mono block uppercase">Officer ID</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. POL-62847"
+                      value={officerId}
+                      onChange={(e) => setOfficerId(e.target.value)}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-xs text-white placeholder-white/20 focus:border-purple-500 outline-none transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] text-white/40 font-mono block uppercase">Badge Number</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 7847-UP-NCR"
+                      value={badgeNumber}
+                      onChange={(e) => setBadgeNumber(e.target.value)}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-xs text-white placeholder-white/20 focus:border-purple-500 outline-none transition-all"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] text-white/40 font-mono block uppercase">OTP Verification Code</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      required
+                      placeholder="Enter 6-digit OTP"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-xs text-white placeholder-white/20 focus:border-purple-500 outline-none tracking-widest text-center font-mono transition-all"
+                    />
+                  </div>
+                  <p className="text-[10px] text-emerald-400 font-mono text-center">
+                    ✓ Secure OTP sent to registered officer phone number.
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isVerifying}
+                className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:from-purple-800 disabled:to-indigo-800 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-[0_0_20px_rgba(168,85,247,0.2)] flex items-center justify-center gap-2"
+              >
+                {isVerifying ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Verifying Credentials...
+                  </>
+                ) : !otpSent ? (
+                  "Request Access"
+                ) : (
+                  "Verify & Log In"
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

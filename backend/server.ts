@@ -13,7 +13,7 @@ import cabRoutes from "./routes/cab.routes";
 import emergencyRoutes from "./routes/emergency.routes";
 
 const app = express();
-const port = parseInt(process.env.BACKEND_PORT || "3001", 10);
+const defaultPort = parseInt(process.env.BACKEND_PORT || "3001", 10);
 const MONGODB_URI = process.env.MONGODB_URI || "";
 
 app.use(cors());
@@ -51,6 +51,19 @@ if (MONGODB_URI) {
   console.log("> No MONGODB_URI specified. Running in in-memory Mock Ledger sandbox mode.");
 }
 
-httpServer.listen(port, () => {
-  console.log(`> TravelSafe X Backend V2 active on http://localhost:${port}`);
-});
+function startServer(port: number) {
+  httpServer.once("error", (err: any) => {
+    if (err.code === "EADDRINUSE") {
+      console.warn(`> Port ${port} is occupied. Retrying with port ${port + 1}...`);
+      startServer(port + 1);
+    } else {
+      console.error("> Server error:", err);
+    }
+  });
+
+  httpServer.listen(port, () => {
+    console.log(`> TravelSafe X Backend V2 active on http://localhost:${port}`);
+  });
+}
+
+startServer(defaultPort);

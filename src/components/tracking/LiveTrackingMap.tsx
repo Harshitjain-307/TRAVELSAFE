@@ -69,9 +69,11 @@ export default function LiveTrackingMap({
   }, [animateMarkers]);
 
   useEffect(() => {
+    const currentMarkers = markersMap.current;
+    const currentAnimated = animatedMarkers.current;
     return () => {
-      markersMap.current.clear();
-      animatedMarkers.current.clear();
+      currentMarkers.clear();
+      currentAnimated.clear();
     };
   }, []);
 

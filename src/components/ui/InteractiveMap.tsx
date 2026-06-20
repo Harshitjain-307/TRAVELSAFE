@@ -3,14 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useRef, useState } from "react";
-
-interface MapMarker {
-  id: string;
-  lat: number;
-  lng: number;
-  label: string;
-  type: "victim" | "guardian" | "police" | "safezone";
-}
+import type { MapMarker } from "@/types";
 
 interface InteractiveMapProps {
   lat: number;
@@ -21,10 +14,13 @@ interface InteractiveMapProps {
   lineColor?: string;
   onMapClick?: (lat: number, lng: number) => void;
   onWaypointDrag?: (lat: number, lng: number) => void;
+  onMarkerClick?: (markerId: string) => void;
   waypoint?: { lat: number; lng: number } | null;
   routeProgress?: number; // 0 to 1
   mapStyle?: "dark" | "light" | "satellite";
   isEmergency?: boolean;
+  secondaryRouteCoordinates?: [number, number][];
+  secondaryLineColor?: string;
 }
 
 export default function InteractiveMap({
@@ -36,10 +32,13 @@ export default function InteractiveMap({
   lineColor = "#10b981",
   onMapClick,
   onWaypointDrag,
+  onMarkerClick,
   waypoint = null,
   routeProgress = 0,
   mapStyle = "dark",
   isEmergency = false,
+  secondaryRouteCoordinates = [],
+  secondaryLineColor = "#eab308",
 }: InteractiveMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<any>(null);
@@ -50,6 +49,7 @@ export default function InteractiveMap({
 
   const onMapClickRef = useRef(onMapClick);
   const onWaypointDragRef = useRef(onWaypointDrag);
+  const onMarkerClickRef = useRef(onMarkerClick);
 
   // Progressive route drawing animation state
   const [visiblePointsCount, setVisiblePointsCount] = useState<number>(0);
@@ -58,7 +58,8 @@ export default function InteractiveMap({
   useEffect(() => {
     onMapClickRef.current = onMapClick;
     onWaypointDragRef.current = onWaypointDrag;
-  }, [onMapClick, onWaypointDrag]);
+    onMarkerClickRef.current = onMarkerClick;
+  }, [onMapClick, onWaypointDrag, onMarkerClick]);
 
   // Animate route drawing on new destination
   useEffect(() => {
@@ -183,6 +184,12 @@ export default function InteractiveMap({
             .bindPopup(`<span class="text-[10px] font-mono text-zinc-900">${marker.label}</span>`)
             .addTo(markersGroup.current);
 
+          m.on("click", () => {
+            if (onMarkerClickRef.current) {
+              onMarkerClickRef.current(marker.id);
+            }
+          });
+
           if (marker.type === "victim") {
             m.openPopup();
           }
@@ -250,7 +257,6 @@ export default function InteractiveMap({
         const animatedCoords = routeCoordinates.slice(0, visiblePointsCount);
         if (animatedCoords.length >= 2) {
           const isEmergencyRoute = lineColor === "#ef4444" || isEmergency;
-          const isPolice = lineColor === "#3b82f6" || lineColor === "#1d4ed8";
           const isGuardian = lineColor === "#eab308" || lineColor === "#fbbf24";
           
           let lineClass = "";
@@ -319,6 +325,26 @@ export default function InteractiveMap({
           }
         }
       }
+
+      // Draw secondary route if provided (e.g. for dual trails in XyroShield)
+      if (secondaryRouteCoordinates && secondaryRouteCoordinates.length >= 2) {
+        const secGlow = L.polyline(secondaryRouteCoordinates, {
+          color: secondaryLineColor || "#eab308",
+          weight: 10,
+          opacity: 0.2,
+          lineJoin: "round"
+        }).addTo(map);
+
+        const secCore = L.polyline(secondaryRouteCoordinates, {
+          color: secondaryLineColor || "#eab308",
+          weight: 5,
+          opacity: 0.9,
+          className: "guardian-moving-dash-route",
+          lineJoin: "round"
+        }).addTo(map);
+
+        routeLine.current.push(secGlow, secCore);
+      }
     };
 
     // 5. Load Leaflet script dynamically
@@ -334,6 +360,16 @@ export default function InteractiveMap({
       initMap();
     }
   }, [lat, lng, zoom, markers, routeCoordinates, visiblePointsCount, lineColor, mapStyle, isEmergency, routeProgress, waypoint]);
+
+  useEffect(() => {
+    if (leafletMap.current && routeCoordinates && routeCoordinates.length >= 2) {
+      const L = (window as any).L;
+      if (L) {
+        const bounds = L.latLngBounds(routeCoordinates);
+        leafletMap.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      }
+    }
+  }, [routeCoordinates]);
 
   return (
     <div className="w-full h-full relative rounded-xl overflow-hidden border border-white/5 bg-zinc-950">

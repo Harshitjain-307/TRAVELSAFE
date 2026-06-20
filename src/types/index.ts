@@ -157,3 +157,11 @@ export interface ResponderUpdatePayload {
   routeProgress: number;
   status: ResponderStatus;
 }
+
+export interface MapMarker {
+  id: string;
+  lat: number;
+  lng: number;
+  label: string;
+  type: "victim" | "guardian" | "police" | "safezone";
+}

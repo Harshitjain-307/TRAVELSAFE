@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Lock, Video, Mic, Shield, ShieldAlert, ShieldCheck, Car, Footprints, Bike, Bus, UserCheck, ShieldAlert as WarningIcon, AlertCircle } from "lucide-react";
+import { MapPin, Lock, Shield, ShieldCheck, Car, Footprints, Bike, Bus } from "lucide-react";
 import { useTravelSafeStore } from "@/store/useTravelSafeStore";
 
 interface JourneyTabProps {
@@ -12,7 +12,6 @@ interface JourneyTabProps {
 export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
   const systemMode = useTravelSafeStore((s) => s.systemMode);
   const isEmergency = systemMode !== "SAFE";
-  const evidence = useTravelSafeStore((s) => s.evidence);
 
   // V2 Journey States
   const [isJourneyActive, setIsJourneyActive] = useState(false);
@@ -24,12 +23,22 @@ export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
   const [cabService, setCabService] = useState("");
   const [tripId, setTripId] = useState("");
 
+  // Personal Car / Bike Input fields
+  const [vehicleNumber, setVehicleNumber] = useState("");
+
   // Chat log states
   const [safeWords] = useState(["Aunt Mary called.", "I forgot my blue file."]);
   const [chatInput, setChatInput] = useState("");
   const [chatLog, setChatLog] = useState<{ sender: "user" | "other"; text: string }[]>([
     { sender: "other", text: "Hey! Let know when you reach CP." },
     { sender: "user", text: "Sure, just got in the cab." },
+  ]);
+
+  // AI Companion Chat states
+  const [aiInput, setAiInput] = useState("");
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  const [aiChatLog, setAiChatLog] = useState<{ sender: "user" | "ai"; text: string }[]>([
+    { sender: "ai", text: "Welcome to Ride AI Companion. I will assist you with route safety, lighting quality, and safe havens." },
   ]);
 
   const handleSendMessage = () => {
@@ -53,9 +62,46 @@ export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
     }
   };
 
+  const handleAskAi = (query: string) => {
+    if (isAiTyping) return;
+    
+    setAiChatLog((prev) => [...prev, { sender: "user", text: query }]);
+    setIsAiTyping(true);
+
+    // AI typing simulation
+    setTimeout(() => {
+      let aiText = "Evaluating current coordinates... Path appears secure. Please stay on well-lit lanes.";
+      const lowerQuery = query.toLowerCase();
+      
+      if (lowerQuery.includes("haven") || lowerQuery.includes("safe")) {
+        aiText = "📍 Route Analysis: There are 3 Verified Safe Havens nearby. 1. Police Station (350m, Northwest), 2. SafeZone Metro Booth (600m), 3. 24/7 Superstore (900m). Route navigation to any haven is armed.";
+      } else if (lowerQuery.includes("light") || lowerQuery.includes("coverage")) {
+        aiText = "💡 Light Analysis: Average route luminosity is 87%. Next 400m has optimal lighting. Caution: minor low-light segment detected at sector crossing; remain on central walkways.";
+      } else if (lowerQuery.includes("score") || lowerQuery.includes("rating") || lowerQuery.includes("safety")) {
+        aiText = "🛡️ Safety Rating: 92/100. Crime index is very low in this grid today. 4 other TravelSafe members active in a 1km radius.";
+      } else if (lowerQuery.includes("hello") || lowerQuery.includes("hi")) {
+        aiText = "Hello! I am monitoring your journey parameters in real-time. Ask me about light coverage, safe havens, or safety ratings.";
+      }
+
+      setAiChatLog((prev) => [...prev, { sender: "ai", text: aiText }]);
+      setIsAiTyping(false);
+    }, 800);
+  };
+
+  const handleSendAiMessage = () => {
+    if (!aiInput.trim()) return;
+    const query = aiInput.trim();
+    setAiInput("");
+    handleAskAi(query);
+  };
+
   const startTrip = () => {
     if (transportMode === "cab" && (!cabNumber || !driverName || !cabService || !tripId)) {
       alert("Please fill out all cab details to start a protected trip.");
+      return;
+    }
+    if ((transportMode === "personal" || transportMode === "bike") && !vehicleNumber.trim()) {
+      alert("Please enter your vehicle number to start a protected trip.");
       return;
     }
     setIsJourneyActive(true);
@@ -68,6 +114,10 @@ export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
     setDriverName("");
     setCabService("");
     setTripId("");
+    setVehicleNumber("");
+    setAiChatLog([
+      { sender: "ai", text: "Welcome to Ride AI Companion. I will assist you with route safety, lighting quality, and safe havens." }
+    ]);
   };
 
   const journeySteps = [
@@ -131,28 +181,44 @@ export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
                   placeholder="Cab Number Plate (e.g. DL 1C A 1234)"
                   value={cabNumber}
                   onChange={(e) => setCabNumber(e.target.value)}
-                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none"
+                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none focus:border-yellow-500/40"
                 />
                 <input
                   type="text"
                   placeholder="Driver Name"
                   value={driverName}
                   onChange={(e) => setDriverName(e.target.value)}
-                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none"
+                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none focus:border-yellow-500/40"
                 />
                 <input
                   type="text"
                   placeholder="Cab Service (e.g. Uber, Ola)"
                   value={cabService}
                   onChange={(e) => setCabService(e.target.value)}
-                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none"
+                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none focus:border-yellow-500/40"
                 />
                 <input
                   type="text"
                   placeholder="Trip ID / Booking Ref"
                   value={tripId}
                   onChange={(e) => setTripId(e.target.value)}
-                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none"
+                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none focus:border-yellow-500/40"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Vehicle details form (Personal Car / Bike) */}
+          {(transportMode === "personal" || transportMode === "bike") && (
+            <div className="rounded-xl border border-white/5 bg-black/40 p-3 space-y-2 text-xs">
+              <span className="text-[9px] uppercase tracking-wider text-cyan-400 font-bold block mb-1">Enter Vehicle Details</span>
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  placeholder="Vehicle Number Plate (e.g. DL 1C A 1234)"
+                  value={vehicleNumber}
+                  onChange={(e) => setVehicleNumber(e.target.value)}
+                  className="w-full bg-black/50 border border-white/5 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder-white/30 outline-none focus:border-cyan-500/50"
                 />
               </div>
             </div>
@@ -173,6 +239,22 @@ export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
       {isJourneyActive && (
         <div className="space-y-4">
           
+          {/* Guardian Auto-Share Confirmation Card */}
+          <div className="rounded-xl border border-emerald-500 bg-emerald-950/20 p-3 space-y-1.5 shadow-[0_0_15px_rgba(16,185,129,0.15)] relative overflow-hidden animate-pulse">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[10px] uppercase tracking-wider font-extrabold text-emerald-400">
+                Guardian Auto-Share Active
+              </span>
+            </div>
+            <p className="text-[9px] text-emerald-300/80 leading-relaxed font-sans">
+              Your real-time GPS coordinates, audio stream, and vehicle telemetry are now being shared with 3 designated emergency guardians.
+            </p>
+          </div>
+
           {/* Reassurance panel */}
           <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 space-y-2 text-center relative overflow-hidden">
             <span className="text-[10px] font-bold text-emerald-400 flex items-center justify-center gap-1 uppercase tracking-wider">
@@ -218,6 +300,23 @@ export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
             </div>
           )}
 
+          {/* Vehicle Specific Monitoring Badges (Personal Car / Bike) */}
+          {(transportMode === "personal" || transportMode === "bike") && (
+            <div className="p-3 bg-black/40 border border-white/5 rounded-xl space-y-2 text-[9px] font-mono">
+              <div className="flex justify-between items-center text-cyan-400 font-bold">
+                <span>{transportMode === "personal" ? "🚗 PERSONAL CAR TRIP" : "🏍️ BIKE TRIP"}</span>
+                <span className="text-emerald-400 animate-pulse text-[8px]">✓ VEHICLE WATCH ACTIVE</span>
+              </div>
+              <div className="text-white/50 space-y-0.5 text-[8px]">
+                <div>Vehicle Number: <span className="text-white font-bold">{vehicleNumber}</span></div>
+              </div>
+              <div className="border-t border-white/5 pt-1.5 flex justify-between text-[7px] text-white/40">
+                <span>🛡️ RADAR DISPATCH ON DURESS</span>
+                <span>🚨 EMERGENCY READY</span>
+              </div>
+            </div>
+          )}
+
           {/* Active Trip Tracker */}
           <div className="space-y-2">
             <h3 className="text-[10px] text-white/40 uppercase tracking-widest font-bold flex items-center gap-1.5">
@@ -255,6 +354,82 @@ export function JourneyTab({ onTriggerSilentSos }: JourneyTabProps) {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Ride AI Companion Chat Window */}
+          <div className="space-y-2">
+            <h3 className="text-[10px] text-white/40 uppercase tracking-widest font-bold flex items-center gap-1.5">
+              <span>🤖</span> Ride AI Companion
+            </h3>
+
+            <div className="p-3 bg-white/[0.01] border border-white/5 rounded-2xl space-y-3">
+              {/* Seeded Tip Bubbles */}
+              <div className="space-y-1">
+                <span className="text-[8px] uppercase tracking-wider text-white/40 font-bold block">Quick Safety Checks:</span>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { label: "📍 Safe Havens Nearby", query: "Show safe havens near my route" },
+                    { label: "💡 Light Coverage", query: "What is the street light coverage ahead?" },
+                    { label: "🛡️ Route Safety Score", query: "Check safety rating of this path" },
+                  ].map((tip, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleAskAi(tip.query)}
+                      className="px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/20 text-[8px] text-cyan-300 hover:bg-cyan-500/20 transition-all font-semibold"
+                    >
+                      {tip.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chat Interface */}
+              <div className="border border-white/5 rounded-xl bg-black/40 overflow-hidden">
+                <div className="bg-white/[0.02] border-b border-white/5 px-2 py-1.5 flex items-center justify-between text-[8px] text-white/30 font-mono">
+                  <span>AI SAFETY STREAM</span>
+                  <span className="text-cyan-400">ONLINE</span>
+                </div>
+
+                <div className="p-2 space-y-1.5 max-h-28 overflow-y-auto font-sans">
+                  {aiChatLog.map((log, i) => (
+                    <div key={i} className={`flex ${log.sender === "user" ? "justify-end" : "justify-start"}`}>
+                      <div className={`px-2.5 py-1.5 rounded-lg text-[9px] max-w-[85%] leading-normal ${
+                        log.sender === "user" 
+                          ? "bg-cyan-500/20 text-cyan-200 border border-cyan-500/10" 
+                          : "bg-white/5 text-white/80 border border-white/5"
+                      }`}>
+                        {log.text}
+                      </div>
+                    </div>
+                  ))}
+                  {isAiTyping && (
+                    <div className="flex justify-start">
+                      <div className="px-2.5 py-1.5 rounded-lg text-[9px] bg-white/5 text-white/40 border border-white/5 animate-pulse">
+                        AI is typing...
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* AI Input bar */}
+                <div className="border-t border-white/5 p-1.5 flex gap-1 bg-black/20">
+                  <input
+                    type="text"
+                    placeholder="Ask AI Guardian..."
+                    value={aiInput}
+                    onChange={(e) => setAiInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendAiMessage()}
+                    className="bg-transparent text-[9px] text-white outline-none w-full px-1.5"
+                  />
+                  <button
+                    onClick={handleSendAiMessage}
+                    className="bg-cyan-500/20 border border-cyan-400/20 text-cyan-400 text-[8px] px-2 py-1 rounded font-semibold hover:bg-cyan-500/30 transition-all"
+                  >
+                    Ask
+                  </button>
+                </div>
               </div>
             </div>
           </div>

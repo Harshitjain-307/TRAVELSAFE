@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Compass, Heart, Building, Eye, Clock, Route, Radio, Users, CheckCircle2, Shield, X, MapPin, Layers, Crosshair, Navigation, AlertTriangle, Play, Sparkles } from "lucide-react";
+import { Search, Compass, Building, Heart, Clock, Route, Radio, Users, CheckCircle2, X, Crosshair, Play, Sparkles } from "lucide-react";
 import { useTravelSafeStore } from "@/store/useTravelSafeStore";
 import { isTrackingActive } from "@/lib/tracking";
-import { ResponderStatusPanel } from "@/components/tracking/ResponderStatusPanel";
+import type { MapMarker } from "@/types";
 import dynamic from "next/dynamic";
+import { fetchRoadRouteWithWaypoint, fetchAlternativeRoutes } from "@/lib/osrmService";
 
 const InteractiveMap = dynamic(() => import("@/components/ui/InteractiveMap"), {
   ssr: false,
@@ -39,51 +40,89 @@ function buildRoadCoordinates(
   const endLat = end[0];
   const endLng = end[1];
 
-  // Divide path into block grids to simulate city streets
-  const numBlocks = 6;
-  let currentLat = startLat;
-  let currentLng = startLng;
+  let junctions: [number, number][] = [];
 
-  for (let i = 1; i <= numBlocks; i++) {
-    const targetLat = startLat + (endLat - startLat) * (i / numBlocks);
-    const targetLng = startLng + (endLng - startLng) * (i / numBlocks);
-
+  // Noida Sector 62 route
+  if (Math.abs(endLng - 77.3725) < 0.02) {
     if (routeType === "safest") {
-      const step = 8;
-      // Longitude segment first
-      for (let j = 0; j <= step; j++) {
-        coords.push([currentLat, currentLng + (targetLng - currentLng) * (j / step)]);
-      }
-      currentLng = targetLng;
-      // Latitude segment second
-      for (let j = 0; j <= step; j++) {
-        coords.push([currentLat + (targetLat - currentLat) * (j / step), currentLng]);
-      }
-      currentLat = targetLat;
+      junctions = [
+        [28.6304, 77.2177], // CP
+        [28.6250, 77.2350], // Mandi House
+        [28.6180, 77.2500], // Pragati Maidan
+        [28.5900, 77.2750], // DND Flyway Entrance
+        [28.5920, 77.3200], // Mayur Vihar Link
+        [28.6150, 77.3550], // Noida Sector 62 Bypass
+        [28.6273, 77.3725]  // Sec 62 Metro
+      ];
     } else if (routeType === "fastest") {
-      const step = 6;
-      // Zigzag stairs shortcut simulation
-      for (let j = 0; j <= step; j++) {
-        const factor = j / step;
-        coords.push([
-          currentLat + (targetLat - currentLat) * factor,
-          currentLng + (targetLng - currentLng) * factor
-        ]);
-      }
-      currentLat = targetLat;
-      currentLng = targetLng;
+      junctions = [
+        [28.6304, 77.2177],
+        [28.6280, 77.2550], // Vikas Marg
+        [28.6290, 77.3000], // Preet Vihar
+        [28.6220, 77.3400], // Ghazipur Border
+        [28.6273, 77.3725]
+      ];
+    } else { // recommended
+      junctions = [
+        [28.6304, 77.2177],
+        [28.6220, 77.2400], // Barakhamba Rd
+        [28.6150, 77.2800], // Akshardham Temple highway
+        [28.6200, 77.3300], // Patparganj industrial
+        [28.6273, 77.3725]
+      ];
+    }
+  } 
+  // Siri Fort route
+  else if (Math.abs(endLat - 28.5562) < 0.02) {
+    if (routeType === "safest") {
+      junctions = [
+        [28.6304, 77.2177],
+        [28.6150, 77.2180], // Janpath Road
+        [28.5920, 77.2220], // Lodhi Road
+        [28.5750, 77.2240], // Khel Gaon Marg
+        [28.5562, 77.2198]
+      ];
+    } else if (routeType === "fastest") {
+      junctions = [
+        [28.6304, 77.2177],
+        [28.6050, 77.2100], // Chanakyapuri bypass
+        [28.5800, 77.2110], // Safdarjung Road
+        [28.5562, 77.2198]
+      ];
     } else {
-      const step = 8;
-      // Latitude segment first
-      for (let j = 0; j <= step; j++) {
-        coords.push([currentLat + (targetLat - currentLat) * (j / step), currentLng]);
-      }
-      currentLat = targetLat;
-      // Longitude segment second
-      for (let j = 0; j <= step; j++) {
-        coords.push([currentLat, currentLng + (targetLng - currentLng) * (j / step)]);
-      }
-      currentLng = targetLng;
+      junctions = [
+        [28.6304, 77.2177],
+        [28.6100, 77.2220], // India Gate Circle
+        [28.5850, 77.2280], // Humayun Tomb Bypass
+        [28.5562, 77.2198]
+      ];
+    }
+  }
+  // Fallback / other places
+  else {
+    // Generate a default curved path with turns to follow actual road networks
+    const midLat = startLat + (endLat - startLat) * 0.45;
+    const midLng = startLng + (endLng - startLng) * 0.55;
+    junctions = [
+      start,
+      [midLat, startLng],
+      [midLat, midLng],
+      [endLat, midLng],
+      end
+    ];
+  }
+
+  // Interpolate intermediate coordinates between junctions to make the path smooth and follow roads
+  for (let i = 0; i < junctions.length - 1; i++) {
+    const ptA = junctions[i];
+    const ptB = junctions[i + 1];
+    const steps = 8;
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      coords.push([
+        ptA[0] + (ptB[0] - ptA[0]) * t,
+        ptA[1] + (ptB[1] - ptA[1]) * t
+      ]);
     }
   }
   coords.push(end);
@@ -121,7 +160,18 @@ export function MapTab() {
   const [selectedDest, setSelectedDest] = useState<typeof OPERATIONAL_PLACES[0] | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<"recommended" | "safest" | "fastest">("recommended");
   const [showRecents, setShowRecents] = useState(false);
-  const [selectedCoPassenger, setSelectedCoPassenger] = useState<any | null>(null);
+interface CoPassenger {
+    name: string;
+    distance: number;
+    direction: string;
+    trustScore: number;
+    travelPattern: string;
+    mutualRoute: string;
+    status: string;
+  }
+
+  const [selectedCoPassenger, setSelectedCoPassenger] = useState<CoPassenger | null>(null);
+  const [selectedMarker, setSelectedMarker] = useState<any | null>(null);
   
   // Custom interactive route adjustments
   const [waypoint, setWaypoint] = useState<{ lat: number; lng: number } | null>(null);
@@ -139,6 +189,13 @@ export function MapTab() {
   const [simDistance, setSimDistance] = useState(14.2); // km
   const [simEta, setSimEta] = useState(24); // min
   const simTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // OSRM states
+  const [calculatedRouteCoords, setCalculatedRouteCoords] = useState<[number, number][]>([]);
+  const [routeDistance, setRouteDistance] = useState(14.2);
+  const [routeEta, setRouteEta] = useState(24);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+  const [shouldAutoStartSim, setShouldAutoStartSim] = useState(false);
 
   // Home & Office presets
   const homeLoc = { name: "Home (CP External Circular Rd)", lat: 28.6312, lng: 77.2201, type: "home", score: 95 };
@@ -197,8 +254,8 @@ export function MapTab() {
     setIsJourneySimActive(true);
     setSimProgress(0);
     setSimSpeed(48);
-    setSimDistance(14.2);
-    setSimEta(24);
+    setSimDistance(routeDistance);
+    setSimEta(routeEta);
 
     simTimerRef.current = setInterval(() => {
       setSimProgress((prev) => {
@@ -209,8 +266,8 @@ export function MapTab() {
           return 1;
         }
         // Update stats dynamically
-        setSimDistance(parseFloat((14.2 * (1 - next)).toFixed(1)));
-        setSimEta(Math.ceil(24 * (1 - next)));
+        setSimDistance(parseFloat((routeDistance * (1 - next)).toFixed(1)));
+        setSimEta(Math.ceil(routeEta * (1 - next)));
         setSimSpeed(Math.floor(40 + Math.random() * 12));
         return next;
       });
@@ -222,6 +279,7 @@ export function MapTab() {
     setSimProgress(0);
     if (simTimerRef.current) clearInterval(simTimerRef.current);
     setWaypoint(null);
+    setShouldAutoStartSim(false);
   };
 
   useEffect(() => {
@@ -230,15 +288,133 @@ export function MapTab() {
     };
   }, []);
 
+  // Fetch real road routing using OSRM client-side service
+  useEffect(() => {
+    if (!selectedDest) {
+      setCalculatedRouteCoords([]);
+      return;
+    }
+
+    const startCoords: [number, number] = [28.6304, 77.2177];
+    const destCoords: [number, number] = [selectedDest.lat, selectedDest.lng];
+
+    let active = true;
+    const fetchRoute = async () => {
+      setIsLoadingRoute(true);
+      try {
+        let dist = 14.2;
+        let eta = 24;
+        let coords: [number, number][] = [];
+
+        if (waypoint) {
+          const res = await fetchRoadRouteWithWaypoint(
+            startCoords[0],
+            startCoords[1],
+            waypoint.lat,
+            waypoint.lng,
+            destCoords[0],
+            destCoords[1]
+          );
+          coords = res.coordinates;
+          dist = res.distanceKm;
+          eta = res.durationMinutes;
+        } else {
+          const res = await fetchAlternativeRoutes(
+            startCoords[0],
+            startCoords[1],
+            destCoords[0],
+            destCoords[1]
+          );
+          const selected = res[selectedRoute];
+          coords = selected.coordinates;
+          dist = selected.distanceKm;
+          eta = selected.durationMinutes;
+        }
+
+        if (active) {
+          setCalculatedRouteCoords(coords);
+          setRouteDistance(dist);
+          setRouteEta(eta);
+          setSimDistance(dist);
+          setSimEta(eta);
+
+          if (shouldAutoStartSim) {
+            setShouldAutoStartSim(false);
+            setIsJourneySimActive(true);
+            setSimProgress(0);
+            setSimSpeed(35);
+            
+            if (simTimerRef.current) clearInterval(simTimerRef.current);
+            simTimerRef.current = setInterval(() => {
+              setSimProgress((prev) => {
+                const next = prev + 0.015;
+                if (next >= 1) {
+                  clearInterval(simTimerRef.current!);
+                  setIsJourneySimActive(false);
+                  return 1;
+                }
+                setSimDistance(parseFloat((dist * (1 - next)).toFixed(1)));
+                setSimEta(Math.ceil(eta * (1 - next)));
+                setSimSpeed(Math.floor(35 + Math.random() * 10));
+                return next;
+              });
+            }, 1000);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching road route:", err);
+        if (active) {
+          const fallback = buildRoadRoute(startCoords, destCoords, selectedRoute, waypoint);
+          const dist = selectedRoute === "safest" ? 17.5 : selectedRoute === "fastest" ? 12.1 : 14.2;
+          const eta = selectedRoute === "safest" ? 28 : selectedRoute === "fastest" ? 18 : 24;
+          
+          setCalculatedRouteCoords(fallback);
+          setRouteDistance(dist);
+          setRouteEta(eta);
+          setSimDistance(dist);
+          setSimEta(eta);
+
+          if (shouldAutoStartSim) {
+            setShouldAutoStartSim(false);
+            setIsJourneySimActive(true);
+            setSimProgress(0);
+            setSimSpeed(35);
+            
+            if (simTimerRef.current) clearInterval(simTimerRef.current);
+            simTimerRef.current = setInterval(() => {
+              setSimProgress((prev) => {
+                const next = prev + 0.015;
+                if (next >= 1) {
+                  clearInterval(simTimerRef.current!);
+                  setIsJourneySimActive(false);
+                  return 1;
+                }
+                setSimDistance(parseFloat((dist * (1 - next)).toFixed(1)));
+                setSimEta(Math.ceil(eta * (1 - next)));
+                setSimSpeed(Math.floor(35 + Math.random() * 10));
+                return next;
+              });
+            }, 1000);
+          }
+        }
+      } finally {
+        if (active) setIsLoadingRoute(false);
+      }
+    };
+
+    fetchRoute();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedDest, selectedRoute, waypoint, shouldAutoStartSim]);
+
   // Map markers for map rendering
-  const mapMarkers: any[] = [];
+  const mapMarkers: MapMarker[] = [];
   const startCoords: [number, number] = [28.6304, 77.2177];
   const destCoords: [number, number] = selectedDest ? [selectedDest.lat, selectedDest.lng] : startCoords;
   
   // Calculate road snaps
-  const calculatedRouteCoords = selectedDest
-    ? buildRoadRoute(startCoords, destCoords, selectedRoute, waypoint)
-    : [];
 
   // User current simulated position
   const currentCoords = selectedDest
@@ -288,9 +464,29 @@ export function MapTab() {
     });
   }
 
-  // Safe haven navigation
+  // Safe haven navigation & Start trip simulation automatically
   const navigateToHaven = (havenName: string, lat: number, lng: number) => {
-    selectPlace({ name: havenName, lat, lng, type: "haven", score: 98 });
+    const haven = { name: havenName, lat, lng, type: "haven", score: 98 };
+    setShouldAutoStartSim(true);
+    selectPlace(haven);
+  };
+
+  const handleMarkerClick = (markerId: string) => {
+    const foundMarker = mapMarkers.find(m => m.id === markerId);
+    if (!foundMarker) return;
+
+    const nameClean = foundMarker.label.replace("Destination: ", "").replace("Start: ", "");
+    const placeInfo = OPERATIONAL_PLACES.find(p => p.name.includes(nameClean)) || { score: 95 };
+
+    setSelectedMarker({
+      id: foundMarker.id,
+      name: foundMarker.label,
+      lat: foundMarker.lat,
+      lng: foundMarker.lng,
+      distance: foundMarker.id === "start" ? "0m" : foundMarker.id === "dest" ? `${simDistance} km` : "450m",
+      eta: foundMarker.id === "start" ? "0m" : foundMarker.id === "dest" ? `${simEta} min` : "4 min",
+      safetyScore: placeInfo.score,
+    });
   };
 
   const getWaypointName = (wp: { lat: number; lng: number }) => {
@@ -323,7 +519,15 @@ export function MapTab() {
               zoom={selectedDest ? 14 : 12}
               markers={mapMarkers}
               routeCoordinates={calculatedRouteCoords}
-              lineColor={isEmergency ? "#ef4444" : selectedRoute === "safest" ? "#06b6d4" : "#10b981"}
+              lineColor={
+                isEmergency
+                  ? "#ef4444"
+                  : selectedRoute === "fastest"
+                  ? "#10b981"
+                  : selectedRoute === "safest"
+                  ? "#3b82f6"
+                  : "#fbbf24"
+              }
               routeProgress={simProgress}
               mapStyle={hudStyle}
               isEmergency={isEmergency}
@@ -334,7 +538,54 @@ export function MapTab() {
               onWaypointDrag={(lat, lng) => {
                 setWaypoint({ lat, lng });
               }}
+              onMarkerClick={handleMarkerClick}
             />
+          )}
+
+          {/* Floating Marker detail card for Widescreen */}
+          {selectedMarker && (
+            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 w-72 bg-zinc-950/90 backdrop-blur-md p-4 rounded-2xl border border-white/10 space-y-3 shadow-[0_0_30px_rgba(0,0,0,0.8)] text-white">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="text-xs font-bold text-white tracking-wide">{selectedMarker.name}</h4>
+                  <p className="text-[8px] text-cyan-400 mt-0.5 font-mono">MAP INFRASTRUCTURE NODE</p>
+                </div>
+                <button onClick={() => setSelectedMarker(null)} className="text-white/40 hover:text-white">
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center text-[9px] font-mono bg-black/40 p-2 rounded-xl border border-white/5">
+                <div>
+                  <span className="text-white/35 block uppercase text-[7px]">Distance</span>
+                  <span className="text-white font-bold">{selectedMarker.distance}</span>
+                </div>
+                <div>
+                  <span className="text-white/35 block uppercase text-[7px]">ETA</span>
+                  <span className="text-white font-bold">{selectedMarker.eta}</span>
+                </div>
+                <div>
+                  <span className="text-white/35 block uppercase text-[7px]">Safety</span>
+                  <span className="text-emerald-400 font-bold">{selectedMarker.safetyScore}%</span>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => {
+                    navigateToHaven(selectedMarker.name, selectedMarker.lat, selectedMarker.lng);
+                    setSelectedMarker(null);
+                  }}
+                  className="flex-1 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-[10px] font-bold text-white uppercase tracking-wider transition-all"
+                >
+                  Navigate
+                </button>
+                <button
+                  onClick={() => alert(`Details: Node is active and monitored by Merkle proof ledger. Coordinates: ${selectedMarker.lat}, ${selectedMarker.lng}`)}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] font-bold text-white/80 transition-all uppercase"
+                >
+                  Details
+                </button>
+              </div>
+            </div>
           )}
         </div>
 
@@ -476,6 +727,30 @@ export function MapTab() {
             >
               Edit Route
             </button>
+
+            {/* Dynamic Route Switching in HUD */}
+            <div className="flex items-center gap-1 bg-black/40 border border-white/10 p-0.5 rounded-lg ml-2">
+              {[
+                { id: "recommended" as const, name: "Recommended", color: "text-amber-400 border-amber-400/20" },
+                { id: "safest" as const, name: "Safest", color: "text-blue-400 border-blue-400/20" },
+                { id: "fastest" as const, name: "Fastest", color: "text-emerald-400 border-emerald-400/20" }
+              ].map((r) => {
+                const active = selectedRoute === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => setSelectedRoute(r.id)}
+                    className={`px-2.5 py-1 rounded text-[8px] font-bold uppercase transition-all ${
+                      active
+                        ? "bg-white/10 text-white font-black"
+                        : "text-white/40 hover:text-white"
+                    }`}
+                  >
+                    {r.name}
+                  </button>
+                );
+              })}
+            </div>
             
             {isAdjustMode && (
               <span className="text-[9px] text-amber-400 font-mono animate-pulse">
@@ -644,7 +919,15 @@ export function MapTab() {
             zoom={selectedDest ? 14 : 12}
             markers={mapMarkers}
             routeCoordinates={calculatedRouteCoords}
-            lineColor={isEmergency ? "#ef4444" : selectedRoute === "safest" ? "#06b6d4" : "#10b981"}
+            lineColor={
+              isEmergency
+                ? "#ef4444"
+                : selectedRoute === "fastest"
+                ? "#10b981"
+                : selectedRoute === "safest"
+                ? "#3b82f6"
+                : "#fbbf24"
+            }
             routeProgress={simProgress}
             mapStyle="dark"
             isEmergency={isEmergency}
@@ -655,7 +938,54 @@ export function MapTab() {
             onWaypointDrag={(lat, lng) => {
               setWaypoint({ lat, lng });
             }}
+            onMarkerClick={handleMarkerClick}
           />
+        )}
+        
+        {/* Floating Marker detail card for Mobile view */}
+        {selectedMarker && (
+          <div className="absolute bottom-2 left-2 right-2 z-30 bg-zinc-950/95 backdrop-blur-md p-3 rounded-xl border border-white/10 space-y-2.5 shadow-xl text-white">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="text-[10px] font-bold text-white leading-tight">{selectedMarker.name}</h4>
+                <p className="text-[7px] text-cyan-400 mt-0.5 font-mono">INFRASTRUCTURE NODE</p>
+              </div>
+              <button onClick={() => setSelectedMarker(null)} className="text-white/40 hover:text-white">
+                <X size={10} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-1 text-center text-[8px] font-mono bg-black/40 p-1.5 rounded-lg border border-white/5">
+              <div>
+                <span className="text-white/35 block uppercase text-[6px]">Distance</span>
+                <span className="text-white font-bold">{selectedMarker.distance}</span>
+              </div>
+              <div>
+                <span className="text-white/35 block uppercase text-[6px]">ETA</span>
+                <span className="text-white font-bold">{selectedMarker.eta}</span>
+              </div>
+              <div>
+                <span className="text-white/35 block uppercase text-[6px]">Safety</span>
+                <span className="text-emerald-400 font-bold">{selectedMarker.safetyScore}%</span>
+              </div>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => {
+                  navigateToHaven(selectedMarker.name, selectedMarker.lat, selectedMarker.lng);
+                  setSelectedMarker(null);
+                }}
+                className="flex-1 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-[8px] font-bold text-white uppercase tracking-wider transition-all"
+              >
+                Navigate
+              </button>
+              <button
+                onClick={() => alert(`Details: Node is active and monitored by Merkle proof ledger. Coordinates: ${selectedMarker.lat}, ${selectedMarker.lng}`)}
+                className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[8px] font-bold text-white/80 transition-all uppercase"
+              >
+                Details
+              </button>
+            </div>
+          </div>
         )}
         
         {/* Widescreen Maximizer Trigger */}
@@ -675,6 +1005,58 @@ export function MapTab() {
           {trackingActive ? "LIVE RESPONDER GPS" : "GPS SIGNAL: STABLE"}
         </div>
       </div>
+
+      {/* Route Info Overlay Card for Mobile View */}
+      {selectedDest && !trackingActive && (
+        <div className="rounded-xl border border-white/5 bg-black/85 p-3 space-y-2 text-[10px]">
+          <div className="flex justify-between items-center">
+            <span className="font-bold text-cyan-400 uppercase tracking-wider text-[8px]">
+              Active Route Telemetry
+            </span>
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[7px] font-bold text-emerald-400 font-mono">READY</span>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-4 gap-1 text-center text-[8px] font-mono bg-white/[0.02] p-1.5 rounded-lg border border-white/5">
+            <div>
+              <span className="text-white/35 block uppercase text-[6px]">Distance</span>
+              <span className="text-white font-bold">{simDistance} km</span>
+            </div>
+            <div>
+              <span className="text-white/35 block uppercase text-[6px]">ETA</span>
+              <span className="text-white font-bold">{simEta} min</span>
+            </div>
+            <div>
+              <span className="text-white/35 block uppercase text-[6px]">Speed</span>
+              <span className="text-cyan-400 font-bold">{simSpeed} km/h</span>
+            </div>
+            <div>
+              <span className="text-white/35 block uppercase text-[6px]">Safety</span>
+              <span className="text-emerald-400 font-bold">{selectedDest.score || 95}%</span>
+            </div>
+          </div>
+
+          <div className="flex gap-1.5 pt-0.5">
+            <button
+              onClick={startJourneySimulation}
+              className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider text-white transition-all flex items-center justify-center gap-1 ${
+                isJourneySimActive ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+            >
+              <Play size={8} className={isJourneySimActive ? "animate-pulse" : ""} />
+              {isJourneySimActive ? "Pause Trip" : "Start Trip"}
+            </button>
+            <button
+              onClick={endJourneySimulation}
+              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[9px] font-bold uppercase tracking-wider transition-all"
+            >
+              End
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Custom Route adjustments in Mobile Frame */}
       {selectedDest && !trackingActive && (

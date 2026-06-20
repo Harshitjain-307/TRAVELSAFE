@@ -27,6 +27,8 @@ export default function LandingPage() {
   const [mobileInput, setMobileInput] = useState("");
   const [otpInput, setOtpInput] = useState("");
   const [faceMeshPoints, setFaceMeshPoints] = useState<number>(0);
+  const [officerIdInput, setOfficerIdInput] = useState("");
+  const [adminPasswordInput, setAdminPasswordInput] = useState("");
 
   const roles = [
     {
@@ -183,7 +185,7 @@ export default function LandingPage() {
     }
   };
 
-  const triggerBiometricVerify = (method: string) => {
+  const triggerBiometricVerify = () => {
     setAuthStep("FACE");
     setFaceMeshPoints(0);
     let count = 0;
@@ -203,32 +205,64 @@ export default function LandingPage() {
 
   const handleInputSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (aadhaarInput.length === 12 && mobileInput.length === 10) {
-      setAuthStep("OTP");
-    } else {
-      alert("Aadhaar must be 12 digits, Mobile must be 10 digits.");
+    if (selectedRole === "CIVILIAN") {
+      if (aadhaarInput.length === 12 && mobileInput.length === 10) {
+        setAuthStep("OTP");
+      } else {
+        alert("Aadhaar must be 12 digits, Mobile must be 10 digits.");
+      }
+    } else if (selectedRole === "GUARDIAN") {
+      if (mobileInput.length === 10) {
+        setAuthStep("OTP");
+      } else {
+        alert("Mobile number must be 10 digits.");
+      }
+    } else if (selectedRole === "POLICE") {
+      if (officerIdInput.trim().length >= 3 && mobileInput.length === 10) {
+        setAuthStep("OTP");
+      } else {
+        alert("Officer ID must be at least 3 characters, Mobile must be 10 digits.");
+      }
+    } else if (selectedRole === "ADMIN") {
+      if (adminPasswordInput.trim().length >= 4 && mobileInput.length === 10) {
+        setAuthStep("OTP");
+      } else {
+        alert("Password must be at least 4 characters, Mobile must be 10 digits.");
+      }
     }
   };
 
   const handleOtpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (otpInput === "123456" || otpInput.length === 6) {
-      setAuthStep("FACE");
-      // Simulate face scan incremental dots
-      let count = 0;
-      const interval = setInterval(() => {
-        count += 12;
-        setFaceMeshPoints(count);
-        if (count >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            setAuthStep("SUCCESS");
-            setAuthStatus(true);
-            setUserPersona(selectedRole);
-            setAadhaarDetails(aadhaarInput, mobileInput, selectedRole === "CIVILIAN" ? "Priya Sharma" : selectedRole === "GUARDIAN" ? "Rahul Singh" : selectedRole === "POLICE" ? "Inspector Sharma" : "Super Admin");
-          }, 800);
-        }
-      }, 300);
+      if (selectedRole === "CIVILIAN") {
+        setAuthStep("FACE");
+        // Simulate face scan incremental dots
+        let count = 0;
+        const interval = setInterval(() => {
+          count += 12;
+          setFaceMeshPoints(count);
+          if (count >= 100) {
+            clearInterval(interval);
+            setTimeout(() => {
+              setAuthStep("SUCCESS");
+              setAuthStatus(true);
+              setUserPersona(selectedRole);
+              setAadhaarDetails(aadhaarInput, mobileInput, "Priya Sharma");
+            }, 800);
+          }
+        }, 300);
+      } else {
+        // Skip face scan for other roles
+        setAuthStep("SUCCESS");
+        setAuthStatus(true);
+        setUserPersona(selectedRole);
+        setAadhaarDetails(
+          "", // No Aadhaar for other roles
+          mobileInput,
+          selectedRole === "GUARDIAN" ? "Rahul Singh" : selectedRole === "POLICE" ? "Inspector Sharma" : "Super Admin"
+        );
+      }
     } else {
       alert("Verification Code incorrect. Enter any 6 digits (e.g. 123456).");
     }
@@ -404,7 +438,7 @@ export default function LandingPage() {
                     <div className="grid grid-cols-3 gap-2">
                       <button
                         type="button"
-                        onClick={() => triggerBiometricVerify("Face ID")}
+                        onClick={() => triggerBiometricVerify()}
                         className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-white/5 bg-white/[0.01] hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all text-white/60 hover:text-white"
                       >
                         <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-400">
@@ -415,7 +449,7 @@ export default function LandingPage() {
 
                       <button
                         type="button"
-                        onClick={() => triggerBiometricVerify("Fingerprint")}
+                        onClick={() => triggerBiometricVerify()}
                         className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-white/5 bg-white/[0.01] hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-white/60 hover:text-white"
                       >
                         <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
@@ -426,7 +460,7 @@ export default function LandingPage() {
 
                       <button
                         type="button"
-                        onClick={() => triggerBiometricVerify("Device PIN")}
+                        onClick={() => triggerBiometricVerify()}
                         className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-white/5 bg-white/[0.01] hover:border-purple-500/40 hover:bg-purple-500/5 transition-all text-white/60 hover:text-white"
                       >
                         <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400">
@@ -439,7 +473,7 @@ export default function LandingPage() {
 
                   <button
                     type="button"
-                    onClick={() => triggerBiometricVerify("One Tap")}
+                    onClick={() => triggerBiometricVerify()}
                     className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 text-xs font-bold uppercase tracking-wider hover:from-emerald-500 hover:to-cyan-500 transition-all mt-4 text-white"
                   >
                     Instant Biometric Bypass
@@ -457,24 +491,64 @@ export default function LandingPage() {
 
               {authStep === "INPUT" && (
                 <form onSubmit={handleInputSubmit} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[9px] uppercase tracking-widest text-white/40 font-mono font-bold block">
-                      Enter 12-Digit Aadhaar Card Number
-                    </label>
-                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-black/40 border border-white/5">
-                      <Lock size={14} className="text-white/20" />
-                      <input
-                        type="text"
-                        maxLength={12}
-                        pattern="\d{12}"
-                        placeholder="1234 5678 9012"
-                        value={aadhaarInput}
-                        onChange={(e) => setAadhaarInput(e.target.value.replace(/\D/g, ""))}
-                        required
-                        className="bg-transparent text-xs text-white/90 outline-none w-full font-mono"
-                      />
+                  {selectedRole === "CIVILIAN" && (
+                    <div className="space-y-1">
+                      <label className="text-[9px] uppercase tracking-widest text-white/40 font-mono font-bold block">
+                        Enter 12-Digit Aadhaar Card Number
+                      </label>
+                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-black/40 border border-white/5">
+                        <Lock size={14} className="text-white/20" />
+                        <input
+                          type="text"
+                          maxLength={12}
+                          pattern="\d{12}"
+                          placeholder="1234 5678 9012"
+                          value={aadhaarInput}
+                          onChange={(e) => setAadhaarInput(e.target.value.replace(/\D/g, ""))}
+                          required
+                          className="bg-transparent text-xs text-white/90 outline-none w-full font-mono"
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {selectedRole === "POLICE" && (
+                    <div className="space-y-1">
+                      <label className="text-[9px] uppercase tracking-widest text-white/40 font-mono font-bold block">
+                        Officer ID
+                      </label>
+                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-black/40 border border-white/5">
+                        <Lock size={14} className="text-white/20" />
+                        <input
+                          type="text"
+                          placeholder="P-14"
+                          value={officerIdInput}
+                          onChange={(e) => setOfficerIdInput(e.target.value)}
+                          required
+                          className="bg-transparent text-xs text-white/90 outline-none w-full font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedRole === "ADMIN" && (
+                    <div className="space-y-1">
+                      <label className="text-[9px] uppercase tracking-widest text-white/40 font-mono font-bold block">
+                        Security Password
+                      </label>
+                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-black/40 border border-white/5">
+                        <Lock size={14} className="text-white/20" />
+                        <input
+                          type="password"
+                          placeholder="••••••••"
+                          value={adminPasswordInput}
+                          onChange={(e) => setAdminPasswordInput(e.target.value)}
+                          required
+                          className="bg-transparent text-xs text-white/90 outline-none w-full font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-1">
                     <label className="text-[9px] uppercase tracking-widest text-white/40 font-mono font-bold block">

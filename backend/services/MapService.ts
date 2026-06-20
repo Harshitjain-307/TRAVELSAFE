@@ -79,30 +79,7 @@ export class MapService {
     profile: "driving" | "walking" | "cycling" = "driving"
   ): Promise<RouteCoord[]> {
     if (!MAPBOX_TOKEN) {
-      // Local Turn-by-Turn Road Network Simulator
-      const waypoints: RouteCoord[] = [];
-      const steps = 24;
-      // Simulate typical city grid turns instead of a straight line
-      const midLat1 = start.lat + (end.lat - start.lat) * 0.35;
-      const midLng1 = start.lng; // Turn 1
-      const midLat2 = midLat1;
-      const midLng2 = start.lng + (end.lng - start.lng) * 0.7; // Turn 2
-
-      const keyPoints = [start, { lat: midLat1, lng: midLng1 }, { lat: midLat2, lng: midLng2 }, end];
-      for (let i = 0; i < keyPoints.length - 1; i++) {
-        const pA = keyPoints[i];
-        const pB = keyPoints[i + 1];
-        const localSteps = steps / 3;
-        for (let s = 0; s < localSteps; s++) {
-          const t = s / localSteps;
-          waypoints.push({
-            lat: pA.lat + (pB.lat - pA.lat) * t,
-            lng: pA.lng + (pB.lng - pA.lng) * t
-          });
-        }
-      }
-      waypoints.push(end);
-      return waypoints;
+      return this.getFallbackDirections(start, end);
     }
 
     try {
@@ -117,6 +94,36 @@ export class MapService {
     }
 
     // Default fallback to grid lines if directions call errors out
-    return this.getDirections(start, end, profile);
+    return this.getFallbackDirections(start, end);
+  }
+
+  /**
+   * Local Turn-by-Turn Road Network Simulator used as a fallback.
+   */
+  static getFallbackDirections(start: RouteCoord, end: RouteCoord): RouteCoord[] {
+    const waypoints: RouteCoord[] = [];
+    const steps = 24;
+    // Simulate typical city grid turns instead of a straight line
+    const midLat1 = start.lat + (end.lat - start.lat) * 0.35;
+    const midLng1 = start.lng; // Turn 1
+    const midLat2 = midLat1;
+    const midLng2 = start.lng + (end.lng - start.lng) * 0.7; // Turn 2
+
+    const keyPoints = [start, { lat: midLat1, lng: midLng1 }, { lat: midLat2, lng: midLng2 }, end];
+    for (let i = 0; i < keyPoints.length - 1; i++) {
+      const pA = keyPoints[i];
+      const pB = keyPoints[i + 1];
+      const localSteps = steps / 3;
+      for (let s = 0; s < localSteps; s++) {
+        const t = s / localSteps;
+        waypoints.push({
+          lat: pA.lat + (pB.lat - pA.lat) * t,
+          lng: pA.lng + (pB.lng - pA.lng) * t
+        });
+      }
+    }
+    waypoints.push(end);
+    return waypoints;
   }
 }
+
