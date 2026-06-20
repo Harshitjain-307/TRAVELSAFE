@@ -7,8 +7,19 @@ export class SocketService {
   private static io: Server | null = null;
 
   static init(server: any): Server {
+    // Read the FRONTEND_URL variable
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
     this.io = new Server(server, {
-      cors: { origin: "*", methods: ["GET", "POST"] },
+      cors: { 
+        origin: [
+          frontendUrl,
+          "http://localhost:3000",
+          "http://localhost:3001"
+        ], 
+        methods: ["GET", "POST"],
+        credentials: true
+      },
       transports: ["websocket", "polling"]
     });
 
