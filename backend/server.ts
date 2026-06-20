@@ -11,6 +11,7 @@ import routeRoutes from "./routes/route.routes";
 import searchRoutes from "./routes/search.routes";
 import cabRoutes from "./routes/cab.routes";
 import emergencyRoutes from "./routes/emergency.routes";
+import osrmRoutes from "./routes/osrm.routes";
 
 const app = express();
 const defaultPort = parseInt(process.env.BACKEND_PORT || "3001", 10);
@@ -24,6 +25,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/journey", journeyRoutes);
 app.use("/api/guardian", guardianRoutes);
 app.use("/api/route", routeRoutes);
+app.use("/api/routes", osrmRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/cab", cabRoutes);
 app.use("/api/emergency", emergencyRoutes);
